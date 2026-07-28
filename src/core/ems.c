@@ -7,6 +7,69 @@ static void trimNewline(char *text) {
     }
 }
 
+int copyStringSafe(char *dest, size_t destSize, const char *src) {
+    size_t srcLength;
+
+    if (dest == NULL || destSize == 0) {
+        return 0;
+    }
+
+    if (src == NULL) {
+        dest[0] = '\0';
+        return 0;
+    }
+
+    srcLength = strlen(src);
+    if (srcLength >= destSize) {
+        memcpy(dest, src, destSize - 1);
+        dest[destSize - 1] = '\0';
+        return 0;
+    }
+
+    memcpy(dest, src, srcLength + 1);
+    return 1;
+}
+
+static int parseIntValue(const char *buffer, int *value) {
+    char *end = NULL;
+    long parsedValue;
+
+    if (buffer == NULL || value == NULL) {
+        return 0;
+    }
+
+    errno = 0;
+    parsedValue = strtol(buffer, &end, 10);
+    if (errno != 0 || end == buffer || *end != '\0') {
+        return 0;
+    }
+
+    if (parsedValue < INT_MIN || parsedValue > INT_MAX) {
+        return 0;
+    }
+
+    *value = (int)parsedValue;
+    return 1;
+}
+
+static int parseDoubleValue(const char *buffer, double *value) {
+    char *end = NULL;
+    double parsedValue;
+
+    if (buffer == NULL || value == NULL) {
+        return 0;
+    }
+
+    errno = 0;
+    parsedValue = strtod(buffer, &end);
+    if (errno != 0 || end == buffer || *end != '\0') {
+        return 0;
+    }
+
+    *value = parsedValue;
+    return 1;
+}
+
 void readText(const char *prompt, char *buffer, size_t size) {
     printf("%s", prompt);
     if (!fgets(buffer, (int)size, stdin)) {
@@ -141,18 +204,24 @@ void readValidatedText(const char *prompt, char *buffer, size_t size, int (*vali
 }
 
 int readInt(const char *prompt) {
-    char buffer[64];
+    char buffer[MAX_INPUT_BUFFER_LENGTH];
     int value = 0;
+
     printf("%s", prompt);
     if (!fgets(buffer, sizeof(buffer), stdin)) {
         return 0;
     }
-    sscanf(buffer, "%d", &value);
+    trimNewline(buffer);
+
+    if (!parseIntValue(buffer, &value)) {
+        return 0;
+    }
+
     return value;
 }
 
 int readValidatedInt(const char *prompt, int minValue, int maxValue, const char *formatHint) {
-    char buffer[64];
+    char buffer[MAX_INPUT_BUFFER_LENGTH];
     int value = 0;
 
     while (1) {
@@ -162,7 +231,7 @@ int readValidatedInt(const char *prompt, int minValue, int maxValue, const char 
         }
         trimNewline(buffer);
 
-        if (sscanf(buffer, "%d", &value) == 1 && value >= minValue && value <= maxValue) {
+        if (parseIntValue(buffer, &value) && value >= minValue && value <= maxValue) {
             return value;
         }
 
@@ -171,18 +240,24 @@ int readValidatedInt(const char *prompt, int minValue, int maxValue, const char 
 }
 
 double readDouble(const char *prompt) {
-    char buffer[64];
+    char buffer[MAX_INPUT_BUFFER_LENGTH];
     double value = 0.0;
+
     printf("%s", prompt);
     if (!fgets(buffer, sizeof(buffer), stdin)) {
         return 0.0;
     }
-    sscanf(buffer, "%lf", &value);
+    trimNewline(buffer);
+
+    if (!parseDoubleValue(buffer, &value)) {
+        return 0.0;
+    }
+
     return value;
 }
 
 double readValidatedDouble(const char *prompt, double minValue, double maxValue, const char *formatHint) {
-    char buffer[64];
+    char buffer[MAX_INPUT_BUFFER_LENGTH];
     double value = 0.0;
 
     while (1) {
@@ -192,7 +267,7 @@ double readValidatedDouble(const char *prompt, double minValue, double maxValue,
         }
         trimNewline(buffer);
 
-        if (sscanf(buffer, "%lf", &value) == 1 && value >= minValue && value <= maxValue) {
+        if (parseDoubleValue(buffer, &value) && value >= minValue && value <= maxValue) {
             return value;
         }
 
@@ -207,10 +282,7 @@ void showModuleMenu(EMSData *data, const char *title, int (*addFunc)(EMSData *),
         printf("1. Add\n");
         printf("2. List\n");
         printf("3. Back\n");
-        printf("Enter choice: ");
-        scanf("%d", &subChoice);
-        while (getchar() != '\n') {
-        }
+        subChoice = readInt("Enter choice: ");
 
         switch (subChoice) {
             case 1:
@@ -228,9 +300,42 @@ void showModuleMenu(EMSData *data, const char *title, int (*addFunc)(EMSData *),
     }
 }
 
+static void ensureDefaultAccounts(EMSData *data) {
+    if (data->roleCount == 0) {
+        Role *hrRole = &data->roles[data->roleCount++];
+        hrRole->id = HR_ROLE_ID;
+        copyStringSafe(hrRole->title, sizeof(hrRole->title), "HR");
+        copyStringSafe(hrRole->description, sizeof(hrRole->description), "HR access");
+
+        Role *employeeRole = &data->roles[data->roleCount++];
+        employeeRole->id = EMPLOYEE_ROLE_ID;
+        copyStringSafe(employeeRole->title, sizeof(employeeRole->title), "Employee");
+        copyStringSafe(employeeRole->description, sizeof(employeeRole->description), "Employee access");
+    }
+
+    if (data->accountCount == 0) {
+        AccessAccount *adminAccount = &data->accounts[data->accountCount++];
+        adminAccount->id = DEFAULT_ADMIN_ROLE_ID;
+        copyStringSafe(adminAccount->username, sizeof(adminAccount->username), "admin");
+        copyStringSafe(adminAccount->password, sizeof(adminAccount->password), "admin");
+        adminAccount->roleId = ADMIN_ROLE_ID;
+        adminAccount->employeeId = INACTIVE_FLAG;
+        adminAccount->active = ACTIVE_FLAG;
+
+        AccessAccount *employeeAccount = &data->accounts[data->accountCount++];
+        employeeAccount->id = DEFAULT_EMPLOYEE_ROLE_ID;
+        copyStringSafe(employeeAccount->username, sizeof(employeeAccount->username), "employee");
+        copyStringSafe(employeeAccount->password, sizeof(employeeAccount->password), "employee");
+        employeeAccount->roleId = EMPLOYEE_ROLE_ID;
+        employeeAccount->employeeId = INACTIVE_FLAG;
+        employeeAccount->active = ACTIVE_FLAG;
+    }
+}
+
 void initializeData(EMSData *data) {
     memset(data, 0, sizeof(*data));
     loadAll(data);
+    ensureDefaultAccounts(data);
 }
 
 void loadAll(EMSData *data) {
@@ -493,22 +598,112 @@ void saveAll(EMSData *data) {
 
 void printMenu(void) {
     printf("\n=== Employee Management System ===\n");
-    printf("1. Employee onboarding\n");
-    printf("2. Employee records\n");
-    printf("3. Department management\n");
-    printf("4. Attendance management\n");
-    printf("5. Leave management\n");
-    printf("6. Login & access management\n");
-    printf("7. Role management\n");
-    printf("8. Payroll\n");
-    printf("9. Project orientation\n");
-    printf("6. Employee login\n");
-    printf("7. HR login\n");
-    printf("8. Login & access management\n");
-    printf("9. Role management\n");
-    printf("10. Payroll\n");
-    printf("11. Project orientation\n");
-    printf("12. Reporting dashboard\n");
-    printf("13. Save and exit\n");
+    printf("1. Employee login\n");
+    printf("2. HR login\n");
+    printf("3. Save and exit\n");
     printf("Enter choice: ");
+}
+
+void showRoleModuleMenu(EMSData *data, const char *roleLabel) {
+    int choice = 0;
+    while (1) {
+        printf("\n=== %s Module Menu ===\n", roleLabel);
+
+        if (strcmp(roleLabel, "HR") == 0) {
+            printf("1. Employee onboarding\n");
+            printf("2. Employee records\n");
+            printf("3. Find employee by name/ID\n");
+            printf("4. Department management\n");
+            printf("5. Attendance management\n");
+            printf("6. Leave management\n");
+            printf("7. Login & access management\n");
+            printf("8. Role management\n");
+            printf("9. Payroll\n");
+            printf("10. Project orientation\n");
+            printf("11. Reporting dashboard\n");
+            printf("12. Back to login menu\n");
+        } else {
+            printf("1. Attendance management\n");
+            printf("2. Leave management\n");
+            printf("3. Payroll\n");
+            printf("4. Project orientation\n");
+            printf("5. View profile\n");
+            printf("6. Logout\n");
+            printf("7. Back to login menu\n");
+        }
+
+        printf("Enter choice: ");
+        choice = readInt("");
+
+        if (strcmp(roleLabel, "HR") == 0) {
+            switch (choice) {
+                case 1:
+                    showModuleMenu(data, "Employee onboarding", addEmployee, listEmployees);
+                    break;
+                case 2:
+                    showModuleMenu(data, "Employee records", addEmployee, listEmployees);
+                    break;
+                case 3:
+                    findEmployeeByNameOrId(data);
+                    break;
+                case 4:
+                    showModuleMenu(data, "Department management", addDepartment, listDepartments);
+                    break;
+                case 5:
+                    showModuleMenu(data, "Attendance management", addAttendance, listAttendance);
+                    break;
+                case 6:
+                    showModuleMenu(data, "Leave management", addLeaveRequest, listLeaveRequests);
+                    break;
+                case 7:
+                    showModuleMenu(data, "Login & access management", addAccessAccount, listAccessAccounts);
+                    break;
+                case 8:
+                    showModuleMenu(data, "Role management", addRole, listRoles);
+                    break;
+                case 9:
+                    showModuleMenu(data, "Payroll", addPayroll, listPayroll);
+                    break;
+                case 10:
+                    showModuleMenu(data, "Project orientation", addProjectOrientation, listProjectOrientations);
+                    break;
+                case 11:
+                    showReportingDashboard(data);
+                    break;
+                case 12:
+                    printf("Returning to login menu.\n");
+                    return;
+                default:
+                    printf("Invalid choice. Try again.\n");
+                    break;
+            }
+        } else {
+            switch (choice) {
+                case 1:
+                    showModuleMenu(data, "Attendance management", addAttendance, listAttendance);
+                    break;
+                case 2:
+                    showModuleMenu(data, "Leave management", addLeaveRequest, listLeaveRequests);
+                    break;
+                case 3:
+                    showModuleMenu(data, "Payroll", addPayroll, listPayroll);
+                    break;
+                case 4:
+                    showModuleMenu(data, "Project orientation", addProjectOrientation, listProjectOrientations);
+                    break;
+                case 5:
+                    printf("Use the employee login flow to view your profile.\n");
+                    break;
+                case 6:
+                    printf("Logging out from module menu.\n");
+                    return;
+                case 7:
+                    printf("Returning to login menu.\n");
+                    return;
+                default:
+                    printf("Invalid choice. Try again.\n");
+                    break;
+            }
+        }
+    }
 }

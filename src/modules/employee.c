@@ -1,5 +1,36 @@
 #include "ems.h"
 
+static int findEmployeeIndexById(const EMSData *data, int employeeId) {
+    for (int i = 0; i < data->employeeCount; ++i) {
+        if (data->employees[i].id == employeeId) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int caseInsensitiveEquals(const char *left, const char *right) {
+    while (*left != '\0' && *right != '\0') {
+        unsigned char leftChar = (unsigned char)*left;
+        unsigned char rightChar = (unsigned char)*right;
+        if (tolower(leftChar) != tolower(rightChar)) {
+            return 0;
+        }
+        ++left;
+        ++right;
+    }
+    return *left == *right;
+}
+
+static int findEmployeeIndexByName(const EMSData *data, const char *name) {
+    for (int i = 0; i < data->employeeCount; ++i) {
+        if (caseInsensitiveEquals(data->employees[i].name, name)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 static int nextEmployeeId(const EMSData *data) {
     int highest = 0;
     for (int i = 0; i < data->employeeCount; ++i) {
@@ -54,4 +85,61 @@ void listEmployees(const EMSData *data) {
                emp->status,
                emp->active ? "Yes" : "No");
     }
+}
+
+void findEmployeeByNameOrId(const EMSData *data) {
+    char input[64];
+    char *end = NULL;
+    long idValue = 0;
+
+    if (data->employeeCount == 0) {
+        printf("No employees found.\n");
+        return;
+    }
+
+    readText("Enter employee name or ID: ", input, sizeof(input));
+
+    idValue = strtol(input, &end, 10);
+    if (end != input && *end == '\0') {
+        int index = findEmployeeIndexById(data, (int)idValue);
+        if (index < 0) {
+            printf("No employee found with ID %ld.\n", idValue);
+            return;
+        }
+
+        const Employee *emp = &data->employees[index];
+        printf("\nEmployee found:\n");
+        printf("ID: %d\nName: %s\nDepartment ID: %d\nRole ID: %d\nSalary: %d\nEmail: %s\nPhone: %s\nJoin Date: %s\nStatus: %s\nActive: %s\n",
+               emp->id,
+               emp->name,
+               emp->departmentId,
+               emp->roleId,
+               emp->salary,
+               emp->email,
+               emp->phone,
+               emp->joinDate,
+               emp->status,
+               emp->active ? "Yes" : "No");
+        return;
+    }
+
+    int index = findEmployeeIndexByName(data, input);
+    if (index < 0) {
+        printf("No employee found with name '%s'.\n", input);
+        return;
+    }
+
+    const Employee *emp = &data->employees[index];
+    printf("\nEmployee found:\n");
+    printf("ID: %d\nName: %s\nDepartment ID: %d\nRole ID: %d\nSalary: %d\nEmail: %s\nPhone: %s\nJoin Date: %s\nStatus: %s\nActive: %s\n",
+           emp->id,
+           emp->name,
+           emp->departmentId,
+           emp->roleId,
+           emp->salary,
+           emp->email,
+           emp->phone,
+           emp->joinDate,
+           emp->status,
+           emp->active ? "Yes" : "No");
 }

@@ -5,50 +5,22 @@ int main(void) {
     initializeData(&data);
 
     int choice = 0;
-    while (choice != 13) {
+    while (choice != 3) {
         printMenu();
-        scanf("%d", &choice);
-        while (getchar() != '\n') {
-        }
+        choice = readInt("Enter choice: ");
 
         switch (choice) {
             case 1:
-                showModuleMenu(&data, "Employee onboarding", addEmployee, listEmployees);
+                if (employeeLogin(&data)) {
+                    showRoleModuleMenu(&data, "Employee");
+                }
                 break;
             case 2:
-                showModuleMenu(&data, "Employee records", addEmployee, listEmployees);
+                if (hrLogin(&data)) {
+                    showRoleModuleMenu(&data, "HR");
+                }
                 break;
             case 3:
-                showModuleMenu(&data, "Department management", addDepartment, listDepartments);
-                break;
-            case 4:
-                showModuleMenu(&data, "Attendance management", addAttendance, listAttendance);
-                break;
-            case 5:
-                showModuleMenu(&data, "Leave management", addLeaveRequest, listLeaveRequests);
-                break;
-            case 6:
-                employeeLogin(&data);
-                break;
-            case 7:
-                hrLogin(&data);
-                break;
-            case 8:
-                showModuleMenu(&data, "Login & access management", addAccessAccount, listAccessAccounts);
-                break;
-            case 9:
-                showModuleMenu(&data, "Role management", addRole, listRoles);
-                break;
-            case 10:
-                showModuleMenu(&data, "Payroll", addPayroll, listPayroll);
-                break;
-            case 11:
-                showModuleMenu(&data, "Project orientation", addProjectOrientation, listProjectOrientations);
-                break;
-            case 12:
-                showReportingDashboard(&data);
-                break;
-            case 13:
                 saveAll(&data);
                 printf("Data saved successfully. Exiting.\n");
                 break;

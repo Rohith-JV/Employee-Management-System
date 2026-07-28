@@ -40,6 +40,43 @@ static int findAccountIndex(const EMSData *data, const char *username, const cha
     return -1;
 }
 
+static int findAccountIndexByUsername(const EMSData *data, const char *username) {
+    for (int i = 0; i < data->accountCount; ++i) {
+        if (strcmp(data->accounts[i].username, username) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int createAccountForRole(EMSData *data, int roleId, const char *username, const char *password) {
+    if (data->accountCount >= MAX_ACCOUNTS) {
+        printf("Access account storage is full.\n");
+        return 0;
+    }
+
+    if (findAccountIndexByUsername(data, username) >= 0) {
+        printf("Username already exists. Please try another one.\n");
+        return 0;
+    }
+
+    AccessAccount *account = &data->accounts[data->accountCount++];
+    memset(account, 0, sizeof(*account));
+
+    account->id = nextAccountId(data);
+    strncpy(account->username, username, sizeof(account->username) - 1);
+    account->username[sizeof(account->username) - 1] = '\0';
+    strncpy(account->password, password, sizeof(account->password) - 1);
+    account->password[sizeof(account->password) - 1] = '\0';
+    account->roleId = roleId;
+    account->employeeId = 0;
+    account->active = 1;
+
+    saveAll(data);
+    printf("Account created successfully.\n");
+    return 1;
+}
+
 static const char *getRoleTitle(const EMSData *data, int roleId) {
     for (int i = 0; i < data->roleCount; ++i) {
         if (data->roles[i].id == roleId) {
@@ -58,6 +95,19 @@ static int isHRRole(const EMSData *data, int roleId) {
 int employeeLogin(EMSData *data) {
     char username[32];
     char password[32];
+    char choice[8];
+
+    readText("New user? (y/n): ", choice, sizeof(choice));
+    if (choice[0] == 'y' || choice[0] == 'Y') {
+        readValidatedText("Choose username: ", username, sizeof(username), isUsername, "3-20 letters, numbers, dot, underscore, or hyphen");
+        readValidatedText("Choose password: ", password, sizeof(password), isPassword, "4-32 characters");
+        if (!createAccountForRole(data, 2, username, password)) {
+            return 0;
+        }
+        printf("Employee account created. Logging in...\n");
+        return 1;
+    }
+
     readText("Username: ", username, sizeof(username));
     readText("Password: ", password, sizeof(password));
 
@@ -78,39 +128,26 @@ int employeeLogin(EMSData *data) {
         return 0;
     }
 
-    int sub = 0;
-    while (sub != 2) {
-        printf("\nEmployee menu:\n1. View profile\n2. Logout\nEnter choice: ");
-        scanf("%d", &sub);
-        while (getchar() != '\n') {}
-
-        switch (sub) {
-            case 1: {
-                int eid = acc->employeeId;
-                for (int i = 0; i < data->employeeCount; ++i) {
-                    if (data->employees[i].id == eid) {
-                        const Employee *e = &data->employees[i];
-                        printf("\nID: %d\nName: %s\nDept: %d\nRole: %d\nSalary: %d\nEmail: %s\nPhone: %s\nStatus: %s\n",
-                               e->id, e->name, e->departmentId, e->roleId, e->salary, e->email, e->phone, e->status);
-                        break;
-                    }
-                }
-                break;
-            }
-            case 2:
-                printf("Logging out.\n");
-                break;
-            default:
-                printf("Invalid choice.\n");
-                break;
-        }
-    }
+    printf("Employee login successful.\n");
     return 1;
 }
 
 int hrLogin(EMSData *data) {
     char username[32];
     char password[32];
+    char choice[8];
+
+    readText("New user? (y/n): ", choice, sizeof(choice));
+    if (choice[0] == 'y' || choice[0] == 'Y') {
+        readValidatedText("Choose username: ", username, sizeof(username), isUsername, "3-20 letters, numbers, dot, underscore, or hyphen");
+        readValidatedText("Choose password: ", password, sizeof(password), isPassword, "4-32 characters");
+        if (!createAccountForRole(data, 1, username, password)) {
+            return 0;
+        }
+        printf("HR account created. Logging in...\n");
+        return 1;
+    }
+
     readText("Username: ", username, sizeof(username));
     readText("Password: ", password, sizeof(password));
 
@@ -126,30 +163,7 @@ int hrLogin(EMSData *data) {
         return 0;
     }
 
-    int sub = 0;
-    while (sub != 4) {
-        printf("\nHR menu:\n1. List employees\n2. List leave requests\n3. List access accounts\n4. Logout\nEnter choice: ");
-        scanf("%d", &sub);
-        while (getchar() != '\n') {}
-
-        switch (sub) {
-            case 1:
-                listEmployees(data);
-                break;
-            case 2:
-                listLeaveRequests(data);
-                break;
-            case 3:
-                listAccessAccounts(data);
-                break;
-            case 4:
-                printf("Logging out.\n");
-                break;
-            default:
-                printf("Invalid choice.\n");
-                break;
-        }
-    }
+    printf("HR login successful.\n");
     return 1;
 }
 
