@@ -1,8 +1,8 @@
 #include "ems.h"
 
-static int nextLeaveId(const EMSData *data) {
-    int highest = 0;
-    for (int i = 0; i < data->leaveCount; ++i) {
+static int32_t nextLeaveId(const EMSData *data) {
+    int32_t highest = 0;
+    for (int32_t i = 0; i < data->leaveCount; ++i) {
         if (data->leaves[i].id > highest) {
             highest = data->leaves[i].id;
         }
@@ -21,6 +21,10 @@ int addLeaveRequest(EMSData *data) {
 
     leave->id = nextLeaveId(data);
     leave->employeeId = readValidatedInt("Employee ID: ", 1, 100000, "positive integer");
+    if (!employeeExists(data, leave->employeeId)) {
+        printf("Employee ID does not exist or is inactive.\n");
+        return 0;
+    }
     readValidatedText("Start date (YYYY-MM-DD): ", leave->startDate, sizeof(leave->startDate), isDate, "YYYY-MM-DD");
     readValidatedText("End date (YYYY-MM-DD): ", leave->endDate, sizeof(leave->endDate), isDate, "YYYY-MM-DD");
     readValidatedText("Reason: ", leave->reason, sizeof(leave->reason), isTextWithSpaces, "letters, numbers, and spaces");
@@ -38,7 +42,7 @@ void listLeaveRequests(const EMSData *data) {
     }
 
     printf("\nLeave requests:\n");
-    for (int i = 0; i < data->leaveCount; ++i) {
+    for (int32_t i = 0; i < data->leaveCount; ++i) {
         const LeaveRequest *leave = &data->leaves[i];
         printf("%d. Employee %d | %s to %s | %s | Status: %d\n",
                leave->id,

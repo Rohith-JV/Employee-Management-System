@@ -7,6 +7,8 @@
 #include <ctype.h>
 #include <limits.h>
 #include <errno.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #define MAX_EMPLOYEES 100
 #define MAX_DEPARTMENTS 50
@@ -49,40 +51,40 @@
 #define BACK_TO_MAIN_MENU 3
 
 typedef struct {
-    int id;
+    int32_t id;
     char name[50];
-    int departmentId;
-    int roleId;
-    int salary;
+    int32_t departmentId;
+    int32_t roleId;
+    int32_t salary;
     char email[MAX_EMAIL_LENGTH];
     char phone[MAX_PHONE_LENGTH];
-    int active;
+    uint8_t active;
     char joinDate[MAX_DATE_LENGTH];
     char status[MAX_STATUS_LENGTH];
 } Employee;
 
 typedef struct {
-    int id;
+    int32_t id;
     char name[MAX_NAME_LENGTH];
     char head[MAX_NAME_LENGTH];
 } Department;
 
 typedef struct {
-    int id;
+    int32_t id;
     char title[MAX_NAME_LENGTH];
     char description[MAX_NAME_LENGTH];
 } Role;
 
 typedef struct {
-    int id;
-    int employeeId;
+    int32_t id;
+    int32_t employeeId;
     char date[MAX_DATE_LENGTH];
-    int status;
+    int32_t status;
 } AttendanceRecord;
 
 typedef struct {
-    int id;
-    int employeeId;
+    int32_t id;
+    int32_t employeeId;
     char month[MAX_DATE_LENGTH];
     double salary;
     double deductions;
@@ -90,62 +92,63 @@ typedef struct {
 } PayrollRecord;
 
 typedef struct {
-    int id;
-    int employeeId;
+    int32_t id;
+    int32_t employeeId;
     char startDate[MAX_DATE_LENGTH];
     char endDate[MAX_DATE_LENGTH];
     char reason[MAX_REASON_LENGTH];
-    int status;
+    int32_t status;
 } LeaveRequest;
 
 typedef struct {
-    int id;
+    int32_t id;
     char username[MAX_USERNAME_LENGTH];
     char password[MAX_PASSWORD_LENGTH];
-    int roleId;
-    int employeeId;
-    int active;
+    int32_t roleId;
+    int32_t employeeId;
+    uint8_t active;
+    uint8_t passwordChangeRequired;
 } AccessAccount;
 
 typedef struct {
-    int id;
-    int employeeId;
+    int32_t id;
+    int32_t employeeId;
     char projectName[MAX_PROJECT_NAME_LENGTH];
     char orientationDate[MAX_DATE_LENGTH];
-    int completed;
+    uint8_t completed;
 } ProjectOrientation;
 
 typedef struct {
     Employee employees[MAX_EMPLOYEES];
-    int employeeCount;
+    int32_t employeeCount;
 
     Department departments[MAX_DEPARTMENTS];
-    int departmentCount;
+    int32_t departmentCount;
 
     Role roles[MAX_ROLES];
-    int roleCount;
+    int32_t roleCount;
 
     AttendanceRecord attendance[MAX_ATTENDANCE];
-    int attendanceCount;
+    int32_t attendanceCount;
 
     PayrollRecord payroll[MAX_PAYROLL];
-    int payrollCount;
+    int32_t payrollCount;
 
     LeaveRequest leaves[MAX_LEAVES];
-    int leaveCount;
+    int32_t leaveCount;
 
     AccessAccount accounts[MAX_ACCOUNTS];
-    int accountCount;
+    int32_t accountCount;
 
     ProjectOrientation projects[MAX_PROJECTS];
-    int projectCount;
+    int32_t projectCount;
 } EMSData;
 
 int copyStringSafe(char *dest, size_t destSize, const char *src);
 void readText(const char *prompt, char *buffer, size_t size);
 void readValidatedText(const char *prompt, char *buffer, size_t size, int (*validator)(const char *), const char *formatHint);
-int readInt(const char *prompt);
-int readValidatedInt(const char *prompt, int minValue, int maxValue, const char *formatHint);
+int32_t readInt(const char *prompt);
+int32_t readValidatedInt(const char *prompt, int32_t minValue, int32_t maxValue, const char *formatHint);
 double readDouble(const char *prompt);
 double readValidatedDouble(const char *prompt, double minValue, double maxValue, const char *formatHint);
 int isAlphaText(const char *input);
@@ -158,14 +161,21 @@ int isTextWithSpaces(const char *input);
 int isUsername(const char *input);
 int isPassword(const char *input);
 void initializeData(EMSData *data);
+int employeeExists(const EMSData *data, int32_t employeeId);
+int departmentExists(const EMSData *data, int32_t departmentId);
+int roleExists(const EMSData *data, int32_t roleId);
 void saveAll(EMSData *data);
 void loadAll(EMSData *data);
 void printMenu(void);
-void showRoleModuleMenu(EMSData *data, const char *roleLabel);
+void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId);
 void showModuleMenu(EMSData *data, const char *title, int (*addFunc)(EMSData *), void (*listFunc)(const EMSData *));
 int addEmployee(EMSData *data);
 void listEmployees(const EMSData *data);
 void findEmployeeByNameOrId(const EMSData *data);
+void showEmployeeRecordsMenu(EMSData *data);
+void searchEmployees(const EMSData *data);
+void updateEmployee(EMSData *data);
+void deleteEmployee(EMSData *data);
 int addDepartment(EMSData *data);
 void listDepartments(const EMSData *data);
 int addRole(EMSData *data);
@@ -178,7 +188,8 @@ int addLeaveRequest(EMSData *data);
 void listLeaveRequests(const EMSData *data);
 int addAccessAccount(EMSData *data);
 void listAccessAccounts(const EMSData *data);
-int employeeLogin(EMSData *data);
+int createEmployeeAccessAccount(EMSData *data, int32_t employeeId, const char *username, const char *password);
+int employeeLogin(EMSData *data, int32_t *employeeId);
 int hrLogin(EMSData *data);
 int addProjectOrientation(EMSData *data);
 void listProjectOrientations(const EMSData *data);

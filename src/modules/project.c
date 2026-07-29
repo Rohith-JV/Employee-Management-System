@@ -1,8 +1,8 @@
 #include "ems.h"
 
-static int nextProjectId(const EMSData *data) {
-    int highest = 0;
-    for (int i = 0; i < data->projectCount; ++i) {
+static int32_t nextProjectId(const EMSData *data) {
+    int32_t highest = 0;
+    for (int32_t i = 0; i < data->projectCount; ++i) {
         if (data->projects[i].id > highest) {
             highest = data->projects[i].id;
         }
@@ -21,6 +21,10 @@ int addProjectOrientation(EMSData *data) {
 
     project->id = nextProjectId(data);
     project->employeeId = readValidatedInt("Employee ID: ", 1, 100000, "positive integer");
+    if (!employeeExists(data, project->employeeId)) {
+        printf("Employee ID does not exist or is inactive.\n");
+        return 0;
+    }
     readValidatedText("Project name: ", project->projectName, sizeof(project->projectName), isTextWithSpaces, "letters and spaces, e.g. Payroll System");
     readValidatedText("Orientation date (YYYY-MM-DD): ", project->orientationDate, sizeof(project->orientationDate), isDate, "YYYY-MM-DD");
     project->completed = readValidatedInt("Completed (1/0): ", 0, 1, "0 or 1");
@@ -37,7 +41,7 @@ void listProjectOrientations(const EMSData *data) {
     }
 
     printf("\nProject orientations:\n");
-    for (int i = 0; i < data->projectCount; ++i) {
+    for (int32_t i = 0; i < data->projectCount; ++i) {
         const ProjectOrientation *project = &data->projects[i];
         printf("%d. Employee %d | %s | %s | Completed: %s\n",
                project->id,

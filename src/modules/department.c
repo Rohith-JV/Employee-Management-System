@@ -1,8 +1,8 @@
 #include "ems.h"
 
-static int nextDepartmentId(const EMSData *data) {
-    int highest = 0;
-    for (int i = 0; i < data->departmentCount; ++i) {
+static int32_t nextDepartmentId(const EMSData *data) {
+    int32_t highest = 0;
+    for (int32_t i = 0; i < data->departmentCount; ++i) {
         if (data->departments[i].id > highest) {
             highest = data->departments[i].id;
         }
@@ -35,7 +35,7 @@ void listDepartments(const EMSData *data) {
     }
 
     printf("\nDepartments:\n");
-    for (int i = 0; i < data->departmentCount; ++i) {
+    for (int32_t i = 0; i < data->departmentCount; ++i) {
         const Department *dept = &data->departments[i];
         printf("%d. %s | Head: %s\n", dept->id, dept->name, dept->head);
     }

@@ -1,23 +1,23 @@
 #include "ems.h"
 
 void showReportingDashboard(const EMSData *data) {
-    int presentCount = 0;
-    int activeAccounts = 0;
-    int completedOrientations = 0;
+    int32_t presentCount = 0;
+    int32_t activeAccounts = 0;
+    int32_t completedOrientations = 0;
 
-    for (int i = 0; i < data->attendanceCount; ++i) {
+    for (int32_t i = 0; i < data->attendanceCount; ++i) {
         if (data->attendance[i].status == 1) {
             presentCount++;
         }
     }
 
-    for (int i = 0; i < data->accountCount; ++i) {
+    for (int32_t i = 0; i < data->accountCount; ++i) {
         if (data->accounts[i].active) {
             activeAccounts++;
         }
     }
 
-    for (int i = 0; i < data->projectCount; ++i) {
+    for (int32_t i = 0; i < data->projectCount; ++i) {
         if (data->projects[i].completed) {
             completedOrientations++;
         }

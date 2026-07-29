@@ -1,8 +1,8 @@
 #include "ems.h"
 
-static int nextRoleId(const EMSData *data) {
-    int highest = 0;
-    for (int i = 0; i < data->roleCount; ++i) {
+static int32_t nextRoleId(const EMSData *data) {
+    int32_t highest = 0;
+    for (int32_t i = 0; i < data->roleCount; ++i) {
         if (data->roles[i].id > highest) {
             highest = data->roles[i].id;
         }
@@ -35,7 +35,7 @@ void listRoles(const EMSData *data) {
     }
 
     printf("\nRoles:\n");
-    for (int i = 0; i < data->roleCount; ++i) {
+    for (int32_t i = 0; i < data->roleCount; ++i) {
         const Role *role = &data->roles[i];
         printf("%d. %s | %s\n", role->id, role->title, role->description);
     }

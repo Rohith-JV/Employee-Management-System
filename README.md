@@ -20,7 +20,7 @@ A console-based C application for managing employee information, departments, ro
 
 ## Build
 ```bash
-gcc -std=c99 -Wall -Wextra -o ems src/main.c src/ems.c
+gcc -std=c99 -Wall -Wextra -I src -o ems src/core/main.c src/core/ems.c src/modules/employee.c src/modules/department.c src/modules/role.c src/modules/attendance.c src/modules/payroll.c src/modules/leave.c src/modules/access.c src/modules/project.c src/modules/report.c
 ```
 
 ## Run

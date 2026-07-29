@@ -1,8 +1,8 @@
 #include "ems.h"
 
-static int nextAttendanceId(const EMSData *data) {
-    int highest = 0;
-    for (int i = 0; i < data->attendanceCount; ++i) {
+static int32_t nextAttendanceId(const EMSData *data) {
+    int32_t highest = 0;
+    for (int32_t i = 0; i < data->attendanceCount; ++i) {
         if (data->attendance[i].id > highest) {
             highest = data->attendance[i].id;
         }
@@ -21,6 +21,10 @@ int addAttendance(EMSData *data) {
 
     record->id = nextAttendanceId(data);
     record->employeeId = readValidatedInt("Employee ID: ", 1, 100000, "positive integer");
+    if (!employeeExists(data, record->employeeId)) {
+        printf("Employee ID does not exist or is inactive.\n");
+        return 0;
+    }
     readValidatedText("Date (YYYY-MM-DD): ", record->date, sizeof(record->date), isDate, "YYYY-MM-DD");
     record->status = readValidatedInt("Status (1=Present, 0=Absent): ", 0, 1, "0 or 1");
 
@@ -36,7 +40,7 @@ void listAttendance(const EMSData *data) {
     }
 
     printf("\nAttendance:\n");
-    for (int i = 0; i < data->attendanceCount; ++i) {
+    for (int32_t i = 0; i < data->attendanceCount; ++i) {
         const AttendanceRecord *record = &data->attendance[i];
         printf("%d. Employee %d | %s | %s\n",
                record->id,
