@@ -1,22 +1,18 @@
 CC = gcc
-CFLAGS = -std=c99 -Wall -Wextra -I src
+ifeq ($(OS),Windows_NT)
+THREAD_FLAGS =
+else
+THREAD_FLAGS = -pthread
+endif
+
+CFLAGS = -std=c99 -Wall -Wextra -I src $(THREAD_FLAGS)
 TARGET = ems
 
 # Original source files for the main application
 SRC = src/core/main.c src/core/ems.c src/modules/employee.c src/modules/department.c src/modules/role.c src/modules/attendance.c src/modules/payroll.c src/modules/leave.c src/modules/access.c src/modules/project.c src/modules/report.c
 
-# --- CUnit Testing Setup ---
 TEST_TARGET = test_ems
-
-# Exclude src/core/main.c to prevent multiple main() function errors, 
-# and include the new test file (tests/test_ems.c)
-TEST_SRC = tests/test_ems.c src/core/ems.c src/modules/employee.c src/modules/department.c src/modules/role.c src/modules/attendance.c src/modules/payroll.c src/modules/leave.c src/modules/access.c src/modules/project.c src/modules/report.c
-
-# Append CUnit include path to your existing CFLAGS
-TEST_CFLAGS = $(CFLAGS) -I/usr/include/CUnit
-
-# Linker flags for CUnit
-TEST_LDFLAGS = -lcunit
+TEST_SRC = tests/test_main.c tests/test_helpers.c tests/test_core.c tests/test_employee.c tests/test_department.c tests/test_role.c tests/test_attendance.c tests/test_payroll.c tests/test_leave.c tests/test_access.c tests/test_project.c tests/test_report.c src/core/ems.c src/modules/employee.c src/modules/department.c src/modules/role.c src/modules/attendance.c src/modules/payroll.c src/modules/leave.c src/modules/access.c src/modules/project.c src/modules/report.c
 
 # Default build target
 all:
@@ -24,7 +20,7 @@ all:
 
 # Compile the test executable
 test:
-	$(CC) $(TEST_CFLAGS) -o $(TEST_TARGET) $(TEST_SRC) $(TEST_LDFLAGS)
+	$(CC) $(CFLAGS) -o $(TEST_TARGET) $(TEST_SRC)
 
 # Compile and immediately run the tests
 run-tests: test

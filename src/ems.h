@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include "threading.h"
 
 #define MAX_EMPLOYEES 100
 #define MAX_DEPARTMENTS 50
@@ -108,6 +109,7 @@ typedef struct {
     int32_t employeeId;
     uint8_t active;
     uint8_t passwordChangeRequired;
+    uint8_t pendingApproval;
 } AccessAccount;
 
 typedef struct {
@@ -142,6 +144,13 @@ typedef struct {
 
     ProjectOrientation projects[MAX_PROJECTS];
     int32_t projectCount;
+
+    /* Shared-state coordination for the autosave thread. */
+    EmsMutex mutex;
+    EmsCondition saveRequested;
+    EmsThread autosaveThread;
+    int autosaveRunning;
+    int dirty;
 } EMSData;
 
 int copyStringSafe(char *dest, size_t destSize, const char *src);
@@ -161,6 +170,11 @@ int isTextWithSpaces(const char *input);
 int isUsername(const char *input);
 int isPassword(const char *input);
 void initializeData(EMSData *data);
+int startAutosave(EMSData *data);
+void stopAutosave(EMSData *data);
+void lockData(EMSData *data);
+void unlockData(EMSData *data);
+void markDataDirty(EMSData *data);
 int employeeExists(const EMSData *data, int32_t employeeId);
 int departmentExists(const EMSData *data, int32_t departmentId);
 int roleExists(const EMSData *data, int32_t roleId);
@@ -189,6 +203,7 @@ void listLeaveRequests(const EMSData *data);
 int addAccessAccount(EMSData *data);
 void listAccessAccounts(const EMSData *data);
 int createEmployeeAccessAccount(EMSData *data, int32_t employeeId, const char *username, const char *password);
+void showAccessManagementMenu(EMSData *data);
 int employeeLogin(EMSData *data, int32_t *employeeId);
 int hrLogin(EMSData *data);
 int addProjectOrientation(EMSData *data);

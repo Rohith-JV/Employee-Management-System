@@ -294,7 +294,7 @@ void updateEmployee(EMSData *data) {
                 readValidatedText("New status: ", emp->status, sizeof(emp->status), isStatusValue, "Active, Probation, or Inactive");
                 break;
             case 8:
-                emp->active = readValidatedInt("Active (1/0): ", 0, 1, "0 or 1");
+                emp->active = (uint8_t)readValidatedInt("Active (1/0): ", 0, 1, "0 or 1");
                 break;
             case 9:
                 break;
@@ -333,7 +333,7 @@ void deleteEmployee(EMSData *data) {
 
     deactivateAccountsForEmployee(data, employeeId);
     removeEmployeeAtIndex(data, index);
-    saveAll(data);
+    markDataDirty(data);
     printf("Employee deleted successfully.\n");
 }
 
@@ -387,7 +387,7 @@ void findEmployeeByNameOrId(const EMSData *data) {
 
     readText("Enter employee name or ID: ", input, sizeof(input));
 
-    idValue = strtol(input, &end, 10);
+    idValue = (int32_t)strtol(input, &end, 10);
     if (end != input && *end == '\0') {
         int32_t index = findEmployeeIndexById(data, idValue);
         if (index < 0) {

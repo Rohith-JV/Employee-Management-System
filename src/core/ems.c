@@ -1,5 +1,66 @@
 #include "ems.h"
 
+static void saveAllUnlocked(EMSData *data);
+
+void lockData(EMSData *data) {
+    ems_mutex_lock(&data->mutex);
+}
+
+void unlockData(EMSData *data) {
+    ems_mutex_unlock(&data->mutex);
+}
+
+void markDataDirty(EMSData *data) {
+    data->dirty = 1;
+    ems_condition_signal(&data->saveRequested);
+}
+
+static EMS_THREAD_RETURN EMS_THREAD_CALL autosaveWorker(void *argument) {
+    EMSData *data = argument;
+
+    lockData(data);
+    while (data->autosaveRunning) {
+        while (data->autosaveRunning && !data->dirty) {
+            ems_condition_wait(&data->saveRequested, &data->mutex);
+        }
+        if (data->autosaveRunning && data->dirty) {
+            data->dirty = 0;
+            saveAllUnlocked(data);
+        }
+    }
+    unlockData(data);
+#ifdef _WIN32
+    return 0;
+#else
+    return NULL;
+#endif
+}
+
+int startAutosave(EMSData *data) {
+    int result;
+    lockData(data);
+    data->autosaveRunning = 1;
+    unlockData(data);
+    result = ems_thread_create(&data->autosaveThread, autosaveWorker, data);
+    if (result != 0) {
+        lockData(data);
+        data->autosaveRunning = 0;
+        unlockData(data);
+    }
+    return result == 0;
+}
+
+void stopAutosave(EMSData *data) {
+    if (!data->autosaveRunning) {
+        return;
+    }
+    lockData(data);
+    data->autosaveRunning = 0;
+    ems_condition_signal(&data->saveRequested);
+    unlockData(data);
+    ems_thread_join(data->autosaveThread);
+}
+
 static void trimNewline(char *text) {
     size_t len = strlen(text);
     if (len > 0 && text[len - 1] == '\n') {
@@ -286,10 +347,15 @@ void showModuleMenu(EMSData *data, const char *title, int (*addFunc)(EMSData *),
 
         switch (subChoice) {
             case 1:
+                lockData(data);
                 addFunc(data);
+                markDataDirty(data);
+                unlockData(data);
                 break;
             case 2:
+                lockData(data);
                 listFunc(data);
+                unlockData(data);
                 break;
             case 3:
                 break;
@@ -300,13 +366,24 @@ void showModuleMenu(EMSData *data, const char *title, int (*addFunc)(EMSData *),
     }
 }
 
+static int hasRoleId(const EMSData *data, int32_t roleId) {
+    for (int32_t i = 0; i < data->roleCount; ++i) {
+        if (data->roles[i].id == roleId) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void ensureDefaultAccounts(EMSData *data) {
-    if (data->roleCount == 0) {
+    if (!hasRoleId(data, HR_ROLE_ID) && data->roleCount < MAX_ROLES) {
         Role *hrRole = &data->roles[data->roleCount++];
         hrRole->id = HR_ROLE_ID;
         copyStringSafe(hrRole->title, sizeof(hrRole->title), "HR");
         copyStringSafe(hrRole->description, sizeof(hrRole->description), "HR access");
+    }
 
+    if (!hasRoleId(data, EMPLOYEE_ROLE_ID) && data->roleCount < MAX_ROLES) {
         Role *employeeRole = &data->roles[data->roleCount++];
         employeeRole->id = EMPLOYEE_ROLE_ID;
         copyStringSafe(employeeRole->title, sizeof(employeeRole->title), "Employee");
@@ -334,6 +411,8 @@ static void ensureDefaultAccounts(EMSData *data) {
 
 void initializeData(EMSData *data) {
     memset(data, 0, sizeof(*data));
+    ems_mutex_init(&data->mutex);
+    ems_condition_init(&data->saveRequested);
     loadAll(data);
     ensureDefaultAccounts(data);
 }
@@ -473,7 +552,7 @@ void loadAll(EMSData *data) {
         if (fgets(line, sizeof(line), file) && sscanf(line, "%d", &count) == 1) {
             data->accountCount = count < 0 ? 0 : (count > MAX_ACCOUNTS ? MAX_ACCOUNTS : count);
             for (int32_t i = 0; i < count && i < MAX_ACCOUNTS; ++i) {
-                char *tokens[7] = {0};
+                char *tokens[8] = {0};
                 int tokenCount = 0;
                 char *token = NULL;
 
@@ -483,7 +562,7 @@ void loadAll(EMSData *data) {
                 trimNewline(line);
 
                 token = strtok(line, "|");
-                while (token != NULL && tokenCount < 7) {
+                while (token != NULL && tokenCount < 8) {
                     tokens[tokenCount++] = token;
                     token = strtok(NULL, "|");
                 }
@@ -497,8 +576,9 @@ void loadAll(EMSData *data) {
                 copyStringSafe(data->accounts[i].password, sizeof(data->accounts[i].password), tokens[2]);
                 data->accounts[i].roleId = (int)strtol(tokens[3], NULL, 10);
                 data->accounts[i].employeeId = (int)strtol(tokens[4], NULL, 10);
-                data->accounts[i].active = (int)strtol(tokens[5], NULL, 10);
-                data->accounts[i].passwordChangeRequired = (tokenCount >= 7) ? (int)strtol(tokens[6], NULL, 10) : 0;
+                data->accounts[i].active = (uint8_t)strtol(tokens[5], NULL, 10);
+                data->accounts[i].passwordChangeRequired = (tokenCount >= 7) ? (uint8_t)strtol(tokens[6], NULL, 10) : 0;
+                data->accounts[i].pendingApproval = (tokenCount >= 8) ? (int)strtol(tokens[7], NULL, 10) : 0;
             }
         }
         fclose(file);
@@ -524,7 +604,7 @@ void loadAll(EMSData *data) {
     }
 }
 
-void saveAll(EMSData *data) {
+static void saveAllUnlocked(EMSData *data) {
     FILE *file = fopen("data/employees.txt", "w");
     if (file) {
         fprintf(file, "%d\n", (int)data->employeeCount);
@@ -615,14 +695,15 @@ void saveAll(EMSData *data) {
     if (file) {
         fprintf(file, "%d\n", (int)data->accountCount);
         for (int i = 0; i < data->accountCount; ++i) {
-            fprintf(file, "%d|%s|%s|%d|%d|%d|%d\n",
+            fprintf(file, "%d|%s|%s|%d|%d|%d|%d|%d\n",
                     data->accounts[i].id,
                     data->accounts[i].username,
                     data->accounts[i].password,
                     data->accounts[i].roleId,
                     data->accounts[i].employeeId,
                     data->accounts[i].active,
-                    data->accounts[i].passwordChangeRequired);
+                    data->accounts[i].passwordChangeRequired,
+                    data->accounts[i].pendingApproval);
         }
         fclose(file);
     }
@@ -640,6 +721,12 @@ void saveAll(EMSData *data) {
         }
         fclose(file);
     }
+}
+
+void saveAll(EMSData *data) {
+    lockData(data);
+    saveAllUnlocked(data);
+    unlockData(data);
 }
 
 void printMenu(void) {
@@ -682,10 +769,15 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
                     showModuleMenu(data, "Employee onboarding", addEmployee, listEmployees);
                     break;
                 case 2:
+                    lockData(data);
                     showEmployeeRecordsMenu(data);
+                    markDataDirty(data);
+                    unlockData(data);
                     break;
                 case 3:
+                    lockData(data);
                     findEmployeeByNameOrId(data);
+                    unlockData(data);
                     break;
                 case 4:
                     showModuleMenu(data, "Department management", addDepartment, listDepartments);
@@ -697,7 +789,9 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
                     showModuleMenu(data, "Leave management", addLeaveRequest, listLeaveRequests);
                     break;
                 case 7:
-                    showModuleMenu(data, "Login & access management", addAccessAccount, listAccessAccounts);
+                    lockData(data);
+                    showAccessManagementMenu(data);
+                    unlockData(data);
                     break;
                 case 8:
                     showModuleMenu(data, "Role management", addRole, listRoles);
@@ -709,7 +803,9 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
                     showModuleMenu(data, "Project orientation", addProjectOrientation, listProjectOrientations);
                     break;
                 case 11:
+                    lockData(data);
                     showReportingDashboard(data);
+                    unlockData(data);
                     break;
                 case 12:
                     printf("Returning to login menu.\n");
@@ -721,12 +817,14 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
         } else {
             switch (choice) {
                 case 1:
+                    lockData(data);
                     for (int32_t i = 0; i < data->employeeCount; ++i) {
                         if (data->employees[i].id == employeeId) {
                             printf("ID: %d | Name: %s | Department: %d | Role: %d | Email: %s | Status: %s\n", data->employees[i].id, data->employees[i].name, data->employees[i].departmentId, data->employees[i].roleId, data->employees[i].email, data->employees[i].status);
                             break;
                         }
                     }
+                    unlockData(data);
                     break;
                 case 2:
                     printf("Logging out from module menu.\n");

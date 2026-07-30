@@ -2,6 +2,21 @@
 
 static int32_t findAccountIndexByUsername(const EMSData *data, const char *username);
 
+static int32_t findEmployeeIdByName(const EMSData *data, const char *name) {
+    for (int32_t i = 0; i < data->employeeCount; ++i) {
+        const char *left = data->employees[i].name;
+        const char *right = name;
+        while (*left != '\0' && *right != '\0' && tolower((unsigned char)*left) == tolower((unsigned char)*right)) {
+            ++left;
+            ++right;
+        }
+        if (*left == '\0' && *right == '\0' && data->employees[i].active) {
+            return data->employees[i].id;
+        }
+    }
+    return -1;
+}
+
 static int32_t nextAccountId(const EMSData *data) {
     int32_t highest = 0;
     for (int32_t i = 0; i < data->accountCount; ++i) {
@@ -34,7 +49,7 @@ int addAccessAccount(EMSData *data) {
         printf("Role ID or employee ID does not exist.\n");
         return 0;
     }
-    account->active = readValidatedInt("Active (1/0): ", 0, 1, "0 or 1");
+    account->active = (uint8_t)readValidatedInt("Active (1/0): ", 0, 1, "0 or 1");
     account->passwordChangeRequired = 0;
 
     data->accountCount++;
@@ -86,8 +101,9 @@ int createEmployeeAccessAccount(EMSData *data, int32_t employeeId, const char *u
     account->employeeId = employeeId;
     account->active = 1;
     account->passwordChangeRequired = 1;
+    account->pendingApproval = 0;
 
-    saveAll(data);
+    markDataDirty(data);
     printf("Temporary employee access account created.\n");
     return 1;
 }
@@ -110,13 +126,36 @@ static int isHRRole(const EMSData *data, int32_t roleId) {
 int employeeLogin(EMSData *data, int32_t *employeeId) {
     char username[32];
     char password[32];
+    int32_t loginChoice;
+    int32_t idx;
 
-    readText("Username: ", username, sizeof(username));
-    readText("Password: ", password, sizeof(password));
+    printf("\n=== Employee Access ===\n");
+    printf("1. Sign in\n");
+    printf("2. Sign up (first login with HR temporary password)\n");
+    loginChoice = readValidatedInt("Enter choice: ", 1, 2, "1 or 2");
 
-    int idx = findAccountIndex(data, username, password);
+    if (loginChoice == 1) {
+        readText("Username: ", username, sizeof(username));
+        readText("Password: ", password, sizeof(password));
+        idx = findAccountIndex(data, username, password);
+    } else {
+        int32_t employeeIdByName;
+        readValidatedText("Name: ", username, sizeof(username), isAlphaText, "letters and spaces, e.g. Ram Kumar");
+        readText("Temporary password issued by HR: ", password, sizeof(password));
+        employeeIdByName = findEmployeeIdByName(data, username);
+        idx = -1;
+        if (employeeIdByName > 0) {
+            for (int32_t i = 0; i < data->accountCount; ++i) {
+                if (data->accounts[i].employeeId == employeeIdByName && data->accounts[i].active &&
+                    strcmp(data->accounts[i].password, password) == 0) {
+                    idx = i;
+                    break;
+                }
+            }
+        }
+    }
     if (idx < 0) {
-        printf("Invalid credentials or inactive account.\n");
+        printf("Invalid credentials, name, or inactive account.\n");
         return 0;
     }
 
@@ -156,12 +195,27 @@ int employeeLogin(EMSData *data, int32_t *employeeId) {
 
         copyStringSafe(acc->password, sizeof(acc->password), newPassword);
         acc->passwordChangeRequired = 0;
-        saveAll(data);
+        markDataDirty(data);
     }
 
     printf("Employee login successful.\n");
     if (employeeId != NULL) *employeeId = acc->employeeId;
     return 1;
+}
+
+void showAccessManagementMenu(EMSData *data) {
+    int32_t choice = 0;
+
+    while (choice != 3) {
+        printf("\n=== Login & Access Management ===\n1. Add account\n2. List accounts\n3. Back\n");
+        choice = readInt("Enter choice: ");
+        switch (choice) {
+            case 1: addAccessAccount(data); markDataDirty(data); break;
+            case 2: listAccessAccounts(data); break;
+            case 3: break;
+            default: printf("Invalid choice. Try again.\n"); break;
+        }
+    }
 }
 
 int hrLogin(EMSData *data) {
@@ -195,10 +249,11 @@ void listAccessAccounts(const EMSData *data) {
     printf("\nAccess accounts:\n");
     for (int32_t i = 0; i < data->accountCount; ++i) {
         const AccessAccount *account = &data->accounts[i];
-        printf("%d. %s | Role ID: %d | Active: %s\n",
+        printf("%d. %s | Role ID: %d | Active: %s | Status: %s\n",
                account->id,
                account->username,
                account->roleId,
-               account->active ? "Yes" : "No");
+               account->active ? "Yes" : "No",
+               account->pendingApproval ? "Pending HR approval" : "Approved");
     }
 }

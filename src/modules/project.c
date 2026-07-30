@@ -27,7 +27,7 @@ int addProjectOrientation(EMSData *data) {
     }
     readValidatedText("Project name: ", project->projectName, sizeof(project->projectName), isTextWithSpaces, "letters and spaces, e.g. Payroll System");
     readValidatedText("Orientation date (YYYY-MM-DD): ", project->orientationDate, sizeof(project->orientationDate), isDate, "YYYY-MM-DD");
-    project->completed = readValidatedInt("Completed (1/0): ", 0, 1, "0 or 1");
+    project->completed = (uint8_t)readValidatedInt("Completed (1/0): ", 0, 1, "0 or 1");
 
     data->projectCount++;
     printf("Project orientation entry added.\n");
