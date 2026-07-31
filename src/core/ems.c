@@ -745,6 +745,102 @@ void saveAll(EMSData *data) {
     unlockData(data);
 }
 
+static const Employee *findEmployeeById(const EMSData *data, int32_t employeeId) {
+    for (int32_t i = 0; i < data->employeeCount; ++i) {
+        if (data->employees[i].id == employeeId) return &data->employees[i];
+    }
+    return NULL;
+}
+
+static void showOwnProfile(EMSData *data, int32_t employeeId) {
+    const Employee *employee = findEmployeeById(data, employeeId);
+    if (!employee) {
+        printf("Profile not found.\n");
+        return;
+    }
+    printf("\n=== My Profile ===\n");
+    printf("ID: %d\nName: %s\nDepartment ID: %d\nRole ID: %d\nSalary: %d\nEmail: %s\nPhone: %s\nJoin Date: %s\nStatus: %s\n",
+           employee->id, employee->name, employee->departmentId, employee->roleId,
+           employee->salary, employee->email, employee->phone, employee->joinDate, employee->status);
+}
+
+static void showOwnAttendance(EMSData *data, int32_t employeeId) {
+    int found = 0;
+    printf("\n=== My Attendance ===\n");
+    for (int32_t i = 0; i < data->attendanceCount; ++i) {
+        if (data->attendance[i].employeeId == employeeId) {
+            printf("Date: %s | %s\n", data->attendance[i].date,
+                   data->attendance[i].status ? "Present" : "Absent");
+            found = 1;
+        }
+    }
+    if (!found) printf("No attendance records found.\n");
+}
+
+static void showOwnDepartment(EMSData *data, int32_t employeeId) {
+    const Employee *employee = findEmployeeById(data, employeeId);
+    printf("\n=== My Department ===\n");
+    if (!employee) {
+        printf("Profile not found.\n");
+        return;
+    }
+    for (int32_t i = 0; i < data->departmentCount; ++i) {
+        if (data->departments[i].id == employee->departmentId) {
+            printf("ID: %d | Name: %s | Head: %s\n", data->departments[i].id,
+                   data->departments[i].name, data->departments[i].head);
+            return;
+        }
+    }
+    printf("Department %d not found.\n", employee->departmentId);
+}
+
+static void showOwnPayroll(EMSData *data, int32_t employeeId) {
+    int found = 0;
+    printf("\n=== My Payroll ===\n");
+    for (int32_t i = 0; i < data->payrollCount; ++i) {
+        if (data->payroll[i].employeeId == employeeId) {
+            printf("Month: %s | Gross: %.2f | Deductions: %.2f | Net: %.2f\n",
+                   data->payroll[i].month, data->payroll[i].salary,
+                   data->payroll[i].deductions, data->payroll[i].netPay);
+            found = 1;
+        }
+    }
+    if (!found) printf("No payroll records found.\n");
+}
+
+static void showOwnRole(EMSData *data, int32_t employeeId) {
+    const Employee *employee = findEmployeeById(data, employeeId);
+    printf("\n=== My Role ===\n");
+    if (!employee) {
+        printf("Profile not found.\n");
+        return;
+    }
+    for (int32_t i = 0; i < data->roleCount; ++i) {
+        if (data->roles[i].id == employee->roleId) {
+            printf("ID: %d | Title: %s | Description: %s\n", data->roles[i].id,
+                   data->roles[i].title, data->roles[i].description);
+            return;
+        }
+    }
+    printf("Role %d not found.\n", employee->roleId);
+}
+
+static void showOwnLeaves(EMSData *data, int32_t employeeId) {
+    static const char *labels[] = {"Pending", "Approved", "Rejected"};
+    int found = 0;
+    printf("\n=== My Leave Requests ===\n");
+    for (int32_t i = 0; i < data->leaveCount; ++i) {
+        if (data->leaves[i].employeeId == employeeId) {
+            int32_t status = data->leaves[i].status;
+            printf("%s to %s | Reason: %s | Status: %s\n",
+                   data->leaves[i].startDate, data->leaves[i].endDate, data->leaves[i].reason,
+                   (status >= 0 && status <= 2) ? labels[status] : "Unknown");
+            found = 1;
+        }
+    }
+    if (!found) printf("No leave requests found.\n");
+}
+
 void printMenu(void) {
     printf("\n=== Employee Management System ===\n");
     printf("1. Employee login\n");
@@ -773,7 +869,12 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
             printf("12. Back to login menu\n");
         } else {
             printf("1. View profile\n");
-            printf("2. Logout\n");
+            printf("2. My attendance\n");
+            printf("3. My department\n");
+            printf("4. My payroll\n");
+            printf("5. My role\n");
+            printf("6. My leave requests\n");
+            printf("7. Save and exit\n");
         }
 
         printf("Enter choice: ");
@@ -833,17 +934,23 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
         } else {
             switch (choice) {
                 case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                case 6:
                     lockData(data);
-                    for (int32_t i = 0; i < data->employeeCount; ++i) {
-                        if (data->employees[i].id == employeeId) {
-                            printf("ID: %d | Name: %s | Department: %d | Role: %d | Email: %s | Status: %s\n", data->employees[i].id, data->employees[i].name, data->employees[i].departmentId, data->employees[i].roleId, data->employees[i].email, data->employees[i].status);
-                            break;
-                        }
-                    }
+                    if (choice == 1) showOwnProfile(data, employeeId);
+                    else if (choice == 2) showOwnAttendance(data, employeeId);
+                    else if (choice == 3) showOwnDepartment(data, employeeId);
+                    else if (choice == 4) showOwnPayroll(data, employeeId);
+                    else if (choice == 5) showOwnRole(data, employeeId);
+                    else showOwnLeaves(data, employeeId);
                     unlockData(data);
                     break;
-                case 2:
-                    printf("Logging out from module menu.\n");
+                case 7:
+                    saveAll(data);
+                    printf("Data saved. Logging out.\n");
                     return;
                 default:
                     printf("Invalid choice. Try again.\n");
