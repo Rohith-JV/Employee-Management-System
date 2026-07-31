@@ -446,7 +446,7 @@ void loadAll(EMSData *data) {
             data->employeeCount = tempCount < 0 ? 0 : (tempCount > MAX_EMPLOYEES ? MAX_EMPLOYEES : tempCount);
             for (int32_t i = 0; i < tempCount && i < MAX_EMPLOYEES; ++i) {
                 int tempActive = 0;
-                fscanf(file, "%d|%49[^|]|%d|%d|%d|%49[^|]|%49[^|]|%d|%11[^|]|%19[^|]\n",
+                fscanf(file, "%d|%49[^|\n]|%d|%d|%d|%49[^|\n]|%49[^|\n]|%d|%11[^|\n]|%19[^|\n]\n",
                        &data->employees[i].id,
                        data->employees[i].name,
                        &data->employees[i].departmentId,
@@ -469,7 +469,7 @@ void loadAll(EMSData *data) {
         if (fscanf(file, "%d\n", &count) == 1) {
             data->departmentCount = count < 0 ? 0 : (count > MAX_DEPARTMENTS ? MAX_DEPARTMENTS : count);
             for (int32_t i = 0; i < count && i < MAX_DEPARTMENTS; ++i) {
-                fscanf(file, "%d|%49[^|]|%49[^|]\n",
+                fscanf(file, "%d|%49[^|\n]|%49[^|\n]\n",
                        &data->departments[i].id,
                        data->departments[i].name,
                        data->departments[i].head);
@@ -484,7 +484,7 @@ void loadAll(EMSData *data) {
         if (fscanf(file, "%d\n", &count) == 1) {
             data->roleCount = count < 0 ? 0 : (count > MAX_ROLES ? MAX_ROLES : count);
             for (int32_t i = 0; i < count && i < MAX_ROLES; ++i) {
-                fscanf(file, "%d|%49[^|]|%49[^|]\n",
+                fscanf(file, "%d|%49[^|\n]|%49[^|\n]\n",
                        &data->roles[i].id,
                        data->roles[i].title,
                        data->roles[i].description);
@@ -499,7 +499,7 @@ void loadAll(EMSData *data) {
         if (fscanf(file, "%d\n", &count) == 1) {
             data->attendanceCount = count < 0 ? 0 : (count > MAX_ATTENDANCE ? MAX_ATTENDANCE : count);
             for (int32_t i = 0; i < count && i < MAX_ATTENDANCE; ++i) {
-                fscanf(file, "%d|%d|%11[^|]|%d\n",
+                fscanf(file, "%d|%d|%11[^|\n]|%d\n",
                        &data->attendance[i].id,
                        &data->attendance[i].employeeId,
                        data->attendance[i].date,
@@ -515,7 +515,7 @@ void loadAll(EMSData *data) {
         if (fscanf(file, "%d\n", &count) == 1) {
             data->payrollCount = count < 0 ? 0 : (count > MAX_PAYROLL ? MAX_PAYROLL : count);
             for (int32_t i = 0; i < count && i < MAX_PAYROLL; ++i) {
-                fscanf(file, "%d|%d|%11[^|]|%lf|%lf|%lf\n",
+                fscanf(file, "%d|%d|%11[^|\n]|%lf|%lf|%lf\n",
                        &data->payroll[i].id,
                        &data->payroll[i].employeeId,
                        data->payroll[i].month,
@@ -533,7 +533,7 @@ void loadAll(EMSData *data) {
         if (fscanf(file, "%d\n", &count) == 1) {
             data->leaveCount = count < 0 ? 0 : (count > MAX_LEAVES ? MAX_LEAVES : count);
             for (int32_t i = 0; i < count && i < MAX_LEAVES; ++i) {
-                fscanf(file, "%d|%d|%11[^|]|%11[^|]|%99[^|]|%d\n",
+                fscanf(file, "%d|%d|%11[^|\n]|%11[^|\n]|%99[^|\n]|%d\n",
                        &data->leaves[i].id,
                        &data->leaves[i].employeeId,
                        data->leaves[i].startDate,
@@ -591,7 +591,7 @@ void loadAll(EMSData *data) {
             data->projectCount = tempCount < 0 ? 0 : (tempCount > MAX_PROJECTS ? MAX_PROJECTS : tempCount);
             for (int32_t i = 0; i < tempCount && i < MAX_PROJECTS; ++i) {
                 int tempCompleted = 0;
-                fscanf(file, "%d|%d|%49[^|]|%11[^|]|%d\n",
+                fscanf(file, "%d|%d|%49[^|\n]|%11[^|\n]|%d\n",
                        &data->projects[i].id,
                        &data->projects[i].employeeId,
                        data->projects[i].projectName,
