@@ -68,6 +68,21 @@ static void trimNewline(char *text) {
     }
 }
 
+static void trimSurroundingSpaces(char *text) {
+    size_t len = strlen(text);
+    size_t start = 0;
+
+    while (len > start && isspace((unsigned char)text[len - 1])) {
+        text[--len] = '\0';
+    }
+    while (text[start] != '\0' && isspace((unsigned char)text[start])) {
+        ++start;
+    }
+    if (start > 0) {
+        memmove(text, text + start, len - start + 1);
+    }
+}
+
 int copyStringSafe(char *dest, size_t destSize, const char *src) {
     size_t srcLength;
 
@@ -138,6 +153,7 @@ void readText(const char *prompt, char *buffer, size_t size) {
         return;
     }
     trimNewline(buffer);
+    trimSurroundingSpaces(buffer);
 }
 
 int isAlphaText(const char *input) {
