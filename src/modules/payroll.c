@@ -29,6 +29,7 @@ int addPayroll(EMSData *data) {
     pay->salary = readValidatedDouble("Gross Salary: ", 0.0, 1000000000.0, "positive decimal number");
     pay->deductions = readValidatedDouble("Deductions: ", 0.0, pay->salary, "a value no greater than gross salary");
     pay->netPay = pay->salary - pay->deductions;
+    pay->credited = 0;
 
     data->payrollCount++;
     printf("Payroll record added.\n");
@@ -44,12 +45,13 @@ void listPayroll(const EMSData *data) {
     printf("\nPayroll:\n");
     for (int32_t i = 0; i < data->payrollCount; ++i) {
         const PayrollRecord *pay = &data->payroll[i];
-        printf("%d. Employee %d | %s | Gross: %.2f | Deductions: %.2f | Net: %.2f\n",
+        printf("%d. Employee %d | %s | Gross: %.2f | Deductions: %.2f | Net: %.2f | Credited: %s\n",
                pay->id,
                pay->employeeId,
                pay->month,
                pay->salary,
                pay->deductions,
-               pay->netPay);
+               pay->netPay,
+               pay->credited ? "Yes" : "No");
     }
 }

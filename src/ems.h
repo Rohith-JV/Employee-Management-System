@@ -90,6 +90,7 @@ typedef struct {
     double salary;
     double deductions;
     double netPay;
+    uint8_t credited;
 } PayrollRecord;
 
 typedef struct {
@@ -182,6 +183,19 @@ void saveAll(EMSData *data);
 void loadAll(EMSData *data);
 void printMenu(void);
 void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId);
+void showOwnProfile(EMSData *data, int32_t employeeId);
+void showEmployeeAttendanceMenu(EMSData *data, int32_t employeeId);
+int markAttendance(EMSData *data, int32_t employeeId);
+void viewMyAttendance(const EMSData *data, int32_t employeeId);
+void showEmployeeLeaveMenu(EMSData *data, int32_t employeeId);
+int applyLeave(EMSData *data, int32_t employeeId);
+void viewMyLeaves(const EMSData *data, int32_t employeeId);
+void reviewLeaveRequests(EMSData *data);
+void reviewPayrollReleases(EMSData *data);
+void viewMyPayroll(const EMSData *data, int32_t employeeId);
+void showEmployeeProjectMenu(EMSData *data, int32_t employeeId);
+void viewMyProjects(const EMSData *data, int32_t employeeId);
+void viewProjectProgress(const EMSData *data, int32_t employeeId);
 void showModuleMenu(EMSData *data, const char *title, int (*addFunc)(EMSData *), void (*listFunc)(const EMSData *));
 int addEmployee(EMSData *data);
 void listEmployees(const EMSData *data);

@@ -9,10 +9,10 @@ CFLAGS = -std=c99 -Wall -Wextra -I src $(THREAD_FLAGS)
 TARGET = ems
 
 # Original source files for the main application
-SRC = src/core/main.c src/core/ems.c src/modules/employee.c src/modules/department.c src/modules/role.c src/modules/attendance.c src/modules/payroll.c src/modules/leave.c src/modules/access.c src/modules/project.c src/modules/report.c
+SRC = src/core/main.c src/core/ems.c src/modules/employee.c src/modules/employee_user.c src/modules/department.c src/modules/role.c src/modules/attendance.c src/modules/payroll.c src/modules/leave.c src/modules/access.c src/modules/project.c src/modules/report.c
 
 TEST_TARGET = test_ems
-TEST_SRC = tests/test_main.c tests/test_helpers.c tests/test_core.c tests/test_employee.c tests/test_department.c tests/test_role.c tests/test_attendance.c tests/test_payroll.c tests/test_leave.c tests/test_access.c tests/test_project.c tests/test_report.c src/core/ems.c src/modules/employee.c src/modules/department.c src/modules/role.c src/modules/attendance.c src/modules/payroll.c src/modules/leave.c src/modules/access.c src/modules/project.c src/modules/report.c
+TEST_SRC = tests/test_main.c tests/test_helpers.c tests/test_core.c tests/test_employee.c tests/test_department.c tests/test_role.c tests/test_attendance.c tests/test_payroll.c tests/test_leave.c tests/test_access.c tests/test_project.c tests/test_report.c tests/test_employee_user.c tests/test_ems.c tests/test_populate.c src/core/ems.c src/modules/employee.c src/modules/employee_user.c src/modules/department.c src/modules/role.c src/modules/attendance.c src/modules/payroll.c src/modules/leave.c src/modules/access.c src/modules/project.c src/modules/report.c
 
 # Default build target
 all:

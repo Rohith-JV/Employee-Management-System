@@ -83,6 +83,22 @@ static void trimSurroundingSpaces(char *text) {
     }
 }
 
+static void sanitizeEmployees(EMSData *data) {
+    int32_t writeIndex = 0;
+    for (int32_t i = 0; i < data->employeeCount; ++i) {
+        if (data->employees[i].id > 0) {
+            if (i != writeIndex) {
+                data->employees[writeIndex] = data->employees[i];
+            }
+            writeIndex++;
+        }
+    }
+    for (int32_t i = writeIndex; i < data->employeeCount; ++i) {
+        memset(&data->employees[i], 0, sizeof(data->employees[i]));
+    }
+    data->employeeCount = writeIndex;
+}
+
 int copyStringSafe(char *dest, size_t destSize, const char *src) {
     size_t srcLength;
 
@@ -455,31 +471,39 @@ int roleExists(const EMSData *data, int32_t roleId) {
 }
 
 void loadAll(EMSData *data) {
-    FILE *file = fopen("data/employees.txt", "r");
+    FILE *file = fopen("data/employees.dat", "r");
     if (file) {
         int tempCount = 0;
         if (fscanf(file, "%d\n", &tempCount) == 1) {
-            data->employeeCount = tempCount < 0 ? 0 : (tempCount > MAX_EMPLOYEES ? MAX_EMPLOYEES : tempCount);
+            int32_t loadedCount = 0;
             for (int32_t i = 0; i < tempCount && i < MAX_EMPLOYEES; ++i) {
+                Employee tempEmployee;
                 int tempActive = 0;
-                fscanf(file, "%d|%49[^|\n]|%d|%d|%d|%49[^|\n]|%49[^|\n]|%d|%11[^|\n]|%19[^|\n]\n",
-                       &data->employees[i].id,
-                       data->employees[i].name,
-                       &data->employees[i].departmentId,
-                       &data->employees[i].roleId,
-                       &data->employees[i].salary,
-                       data->employees[i].email,
-                       data->employees[i].phone,
-                       &tempActive,
-                       data->employees[i].joinDate,
-                       data->employees[i].status);
-                data->employees[i].active = (uint8_t)tempActive;
+                if (fscanf(file, "%d|%49[^|\n]|%d|%d|%d|%49[^|\n]|%49[^|\n]|%d|%11[^|\n]|%19[^|\n]\n",
+                           &tempEmployee.id,
+                           tempEmployee.name,
+                           &tempEmployee.departmentId,
+                           &tempEmployee.roleId,
+                           &tempEmployee.salary,
+                           tempEmployee.email,
+                           tempEmployee.phone,
+                           &tempActive,
+                           tempEmployee.joinDate,
+                           tempEmployee.status) == 10) {
+                    tempEmployee.active = (uint8_t)tempActive;
+                    if (tempEmployee.id > 0) {
+                        data->employees[loadedCount++] = tempEmployee;
+                    }
+                } else {
+                    break;
+                }
             }
+            data->employeeCount = loadedCount;
         }
         fclose(file);
     }
 
-    file = fopen("data/departments.txt", "r");
+    file = fopen("data/departments.dat", "r");
     if (file) {
         int count = 0;
         if (fscanf(file, "%d\n", &count) == 1) {
@@ -494,7 +518,7 @@ void loadAll(EMSData *data) {
         fclose(file);
     }
 
-    file = fopen("data/roles.txt", "r");
+    file = fopen("data/roles.dat", "r");
     if (file) {
         int count = 0;
         if (fscanf(file, "%d\n", &count) == 1) {
@@ -509,7 +533,7 @@ void loadAll(EMSData *data) {
         fclose(file);
     }
 
-    file = fopen("data/attendance.txt", "r");
+    file = fopen("data/attendance.dat", "r");
     if (file) {
         int count = 0;
         if (fscanf(file, "%d\n", &count) == 1) {
@@ -525,25 +549,36 @@ void loadAll(EMSData *data) {
         fclose(file);
     }
 
-    file = fopen("data/payroll.txt", "r");
+    file = fopen("data/payroll.dat", "r");
     if (file) {
         int count = 0;
-        if (fscanf(file, "%d\n", &count) == 1) {
+        char line[256];
+        if (fgets(line, sizeof(line), file) && sscanf(line, "%d", &count) == 1) {
             data->payrollCount = count < 0 ? 0 : (count > MAX_PAYROLL ? MAX_PAYROLL : count);
             for (int32_t i = 0; i < count && i < MAX_PAYROLL; ++i) {
-                fscanf(file, "%d|%d|%11[^|\n]|%lf|%lf|%lf\n",
-                       &data->payroll[i].id,
-                       &data->payroll[i].employeeId,
-                       data->payroll[i].month,
-                       &data->payroll[i].salary,
-                       &data->payroll[i].deductions,
-                       &data->payroll[i].netPay);
+                if (!fgets(line, sizeof(line), file)) break;
+                trimNewline(line);
+                char *tokens[7] = {0};
+                int tokenCount = 0;
+                char *token = strtok(line, "|");
+                while (token != NULL && tokenCount < 7) {
+                    tokens[tokenCount++] = token;
+                    token = strtok(NULL, "|");
+                }
+                if (tokenCount < 6) continue;
+                data->payroll[i].id = (int32_t)strtol(tokens[0], NULL, 10);
+                data->payroll[i].employeeId = (int32_t)strtol(tokens[1], NULL, 10);
+                copyStringSafe(data->payroll[i].month, sizeof(data->payroll[i].month), tokens[2]);
+                data->payroll[i].salary = strtod(tokens[3], NULL);
+                data->payroll[i].deductions = strtod(tokens[4], NULL);
+                data->payroll[i].netPay = strtod(tokens[5], NULL);
+                data->payroll[i].credited = (tokenCount >= 7) ? (uint8_t)strtol(tokens[6], NULL, 10) : 0;
             }
         }
         fclose(file);
     }
 
-    file = fopen("data/leaves.txt", "r");
+    file = fopen("data/leaves.dat", "r");
     if (file) {
         int count = 0;
         if (fscanf(file, "%d\n", &count) == 1) {
@@ -561,7 +596,7 @@ void loadAll(EMSData *data) {
         fclose(file);
     }
 
-    file = fopen("data/access.txt", "r");
+    file = fopen("data/access.dat", "r");
     if (file) {
         char line[256];
         int count = 0;
@@ -594,13 +629,13 @@ void loadAll(EMSData *data) {
                 data->accounts[i].employeeId = (int)strtol(tokens[4], NULL, 10);
                 data->accounts[i].active = (uint8_t)strtol(tokens[5], NULL, 10);
                 data->accounts[i].passwordChangeRequired = (tokenCount >= 7) ? (uint8_t)strtol(tokens[6], NULL, 10) : 0;
-                data->accounts[i].pendingApproval = (tokenCount >= 8) ? (int)strtol(tokens[7], NULL, 10) : 0;
+                data->accounts[i].pendingApproval = (tokenCount >= 8) ? (uint8_t)strtol(tokens[7], NULL, 10) : 0;
             }
         }
         fclose(file);
     }
 
-    file = fopen("data/projects.txt", "r");
+    file = fopen("data/projects.dat", "r");
     if (file) {
         int tempCount = 0;
         if (fscanf(file, "%d\n", &tempCount) == 1) {
@@ -621,7 +656,8 @@ void loadAll(EMSData *data) {
 }
 
 static void saveAllUnlocked(EMSData *data) {
-    FILE *file = fopen("data/employees.txt", "w");
+    sanitizeEmployees(data);
+    FILE *file = fopen("data/employees.dat", "w");
     if (file) {
         fprintf(file, "%d\n", (int)data->employeeCount);
         for (int i = 0; i < data->employeeCount; ++i) {
@@ -640,7 +676,7 @@ static void saveAllUnlocked(EMSData *data) {
         fclose(file);
     }
 
-    file = fopen("data/departments.txt", "w");
+    file = fopen("data/departments.dat", "w");
     if (file) {
         fprintf(file, "%d\n", (int)data->departmentCount);
         for (int i = 0; i < data->departmentCount; ++i) {
@@ -652,7 +688,7 @@ static void saveAllUnlocked(EMSData *data) {
         fclose(file);
     }
 
-    file = fopen("data/roles.txt", "w");
+    file = fopen("data/roles.dat", "w");
     if (file) {
         fprintf(file, "%d\n", (int)data->roleCount);
         for (int i = 0; i < data->roleCount; ++i) {
@@ -664,7 +700,7 @@ static void saveAllUnlocked(EMSData *data) {
         fclose(file);
     }
 
-    file = fopen("data/attendance.txt", "w");
+    file = fopen("data/attendance.dat", "w");
     if (file) {
         fprintf(file, "%d\n", (int)data->attendanceCount);
         for (int i = 0; i < data->attendanceCount; ++i) {
@@ -677,22 +713,23 @@ static void saveAllUnlocked(EMSData *data) {
         fclose(file);
     }
 
-    file = fopen("data/payroll.txt", "w");
+    file = fopen("data/payroll.dat", "w");
     if (file) {
         fprintf(file, "%d\n", (int)data->payrollCount);
         for (int i = 0; i < data->payrollCount; ++i) {
-            fprintf(file, "%d|%d|%s|%.2f|%.2f|%.2f\n",
+            fprintf(file, "%d|%d|%s|%.2f|%.2f|%.2f|%d\n",
                     data->payroll[i].id,
                     data->payroll[i].employeeId,
                     data->payroll[i].month,
                     data->payroll[i].salary,
                     data->payroll[i].deductions,
-                    data->payroll[i].netPay);
+                    data->payroll[i].netPay,
+                    data->payroll[i].credited);
         }
         fclose(file);
     }
 
-    file = fopen("data/leaves.txt", "w");
+    file = fopen("data/leaves.dat", "w");
     if (file) {
         fprintf(file, "%d\n", (int)data->leaveCount);
         for (int i = 0; i < data->leaveCount; ++i) {
@@ -707,7 +744,7 @@ static void saveAllUnlocked(EMSData *data) {
         fclose(file);
     }
 
-    file = fopen("data/access.txt", "w");
+    file = fopen("data/access.dat", "w");
     if (file) {
         fprintf(file, "%d\n", (int)data->accountCount);
         for (int i = 0; i < data->accountCount; ++i) {
@@ -724,7 +761,7 @@ static void saveAllUnlocked(EMSData *data) {
         fclose(file);
     }
 
-    file = fopen("data/projects.txt", "w");
+    file = fopen("data/projects.dat", "w");
     if (file) {
         fprintf(file, "%d\n", (int)data->projectCount);
         for (int i = 0; i < data->projectCount; ++i) {
@@ -745,100 +782,98 @@ void saveAll(EMSData *data) {
     unlockData(data);
 }
 
-static const Employee *findEmployeeById(const EMSData *data, int32_t employeeId) {
-    for (int32_t i = 0; i < data->employeeCount; ++i) {
-        if (data->employees[i].id == employeeId) return &data->employees[i];
-    }
-    return NULL;
-}
-
-static void showOwnProfile(EMSData *data, int32_t employeeId) {
-    const Employee *employee = findEmployeeById(data, employeeId);
-    if (!employee) {
-        printf("Profile not found.\n");
-        return;
-    }
-    printf("\n=== My Profile ===\n");
-    printf("ID: %d\nName: %s\nDepartment ID: %d\nRole ID: %d\nSalary: %d\nEmail: %s\nPhone: %s\nJoin Date: %s\nStatus: %s\n",
-           employee->id, employee->name, employee->departmentId, employee->roleId,
-           employee->salary, employee->email, employee->phone, employee->joinDate, employee->status);
-}
-
-static void showOwnAttendance(EMSData *data, int32_t employeeId) {
-    int found = 0;
-    printf("\n=== My Attendance ===\n");
-    for (int32_t i = 0; i < data->attendanceCount; ++i) {
-        if (data->attendance[i].employeeId == employeeId) {
-            printf("Date: %s | %s\n", data->attendance[i].date,
-                   data->attendance[i].status ? "Present" : "Absent");
-            found = 1;
+void reviewLeaveRequests(EMSData *data) {
+    while (1) {
+        int32_t choice = 0;
+        int found = 0;
+        printf("\n=== HR Leave Requests ===\n");
+        for (int32_t i = 0; i < data->leaveCount; ++i) {
+            if (data->leaves[i].status == 0) {
+                const LeaveRequest *leave = &data->leaves[i];
+                printf("ID: %d | Employee: %d | %s to %s | %s | Status: Pending\n",
+                       leave->id,
+                       leave->employeeId,
+                       leave->startDate,
+                       leave->endDate,
+                       leave->reason);
+                found = 1;
+            }
         }
-    }
-    if (!found) printf("No attendance records found.\n");
-}
-
-static void showOwnDepartment(EMSData *data, int32_t employeeId) {
-    const Employee *employee = findEmployeeById(data, employeeId);
-    printf("\n=== My Department ===\n");
-    if (!employee) {
-        printf("Profile not found.\n");
-        return;
-    }
-    for (int32_t i = 0; i < data->departmentCount; ++i) {
-        if (data->departments[i].id == employee->departmentId) {
-            printf("ID: %d | Name: %s | Head: %s\n", data->departments[i].id,
-                   data->departments[i].name, data->departments[i].head);
+        if (!found) {
+            printf("No pending leave requests.\n");
             return;
         }
-    }
-    printf("Department %d not found.\n", employee->departmentId);
-}
-
-static void showOwnPayroll(EMSData *data, int32_t employeeId) {
-    int found = 0;
-    printf("\n=== My Payroll ===\n");
-    for (int32_t i = 0; i < data->payrollCount; ++i) {
-        if (data->payroll[i].employeeId == employeeId) {
-            printf("Month: %s | Gross: %.2f | Deductions: %.2f | Net: %.2f\n",
-                   data->payroll[i].month, data->payroll[i].salary,
-                   data->payroll[i].deductions, data->payroll[i].netPay);
-            found = 1;
-        }
-    }
-    if (!found) printf("No payroll records found.\n");
-}
-
-static void showOwnRole(EMSData *data, int32_t employeeId) {
-    const Employee *employee = findEmployeeById(data, employeeId);
-    printf("\n=== My Role ===\n");
-    if (!employee) {
-        printf("Profile not found.\n");
-        return;
-    }
-    for (int32_t i = 0; i < data->roleCount; ++i) {
-        if (data->roles[i].id == employee->roleId) {
-            printf("ID: %d | Title: %s | Description: %s\n", data->roles[i].id,
-                   data->roles[i].title, data->roles[i].description);
+        choice = readInt("Enter leave request ID to review (0 to go back): ");
+        if (choice == 0) {
             return;
         }
-    }
-    printf("Role %d not found.\n", employee->roleId);
-}
-
-static void showOwnLeaves(EMSData *data, int32_t employeeId) {
-    static const char *labels[] = {"Pending", "Approved", "Rejected"};
-    int found = 0;
-    printf("\n=== My Leave Requests ===\n");
-    for (int32_t i = 0; i < data->leaveCount; ++i) {
-        if (data->leaves[i].employeeId == employeeId) {
-            int32_t status = data->leaves[i].status;
-            printf("%s to %s | Reason: %s | Status: %s\n",
-                   data->leaves[i].startDate, data->leaves[i].endDate, data->leaves[i].reason,
-                   (status >= 0 && status <= 2) ? labels[status] : "Unknown");
-            found = 1;
+        for (int32_t i = 0; i < data->leaveCount; ++i) {
+            if (data->leaves[i].id == choice && data->leaves[i].status == 0) {
+                printf("\nLeave request %d for employee %d:\n", data->leaves[i].id, data->leaves[i].employeeId);
+                printf("%s to %s | %s\n",
+                       data->leaves[i].startDate,
+                       data->leaves[i].endDate,
+                       data->leaves[i].reason);
+                printf("1. Approve\n2. Reject\n3. Back\n");
+                int decision = readInt("Enter choice: ");
+                if (decision == 1) {
+                    data->leaves[i].status = 1;
+                    markDataDirty(data);
+                    printf("Leave request approved.\n");
+                } else if (decision == 2) {
+                    data->leaves[i].status = 2;
+                    markDataDirty(data);
+                    printf("Leave request rejected.\n");
+                }
+                break;
+            }
         }
     }
-    if (!found) printf("No leave requests found.\n");
+}
+
+void reviewPayrollReleases(EMSData *data) {
+    while (1) {
+        int32_t choice = 0;
+        int found = 0;
+        printf("\n=== HR Payroll Releases ===\n");
+        for (int32_t i = 0; i < data->payrollCount; ++i) {
+            if (!data->payroll[i].credited) {
+                const PayrollRecord *pay = &data->payroll[i];
+                printf("ID: %d | Employee: %d | %s | Net: %.2f | Credited: No\n",
+                       pay->id,
+                       pay->employeeId,
+                       pay->month,
+                       pay->netPay);
+                found = 1;
+            }
+        }
+        if (!found) {
+            printf("No uncredited payroll records.\n");
+            return;
+        }
+        choice = readInt("Enter payroll record ID to release (0 to go back): ");
+        if (choice == 0) {
+            return;
+        }
+        for (int32_t i = 0; i < data->payrollCount; ++i) {
+            if (data->payroll[i].id == choice && !data->payroll[i].credited) {
+                printf("\nPayroll record %d for employee %d:\n", data->payroll[i].id, data->payroll[i].employeeId);
+                printf("%s | Gross: %.2f | Deductions: %.2f | Net: %.2f\n",
+                       data->payroll[i].month,
+                       data->payroll[i].salary,
+                       data->payroll[i].deductions,
+                       data->payroll[i].netPay);
+                printf("1. Release payment\n2. Back\n");
+                int decision = readInt("Enter choice: ");
+                if (decision == 1) {
+                    data->payroll[i].credited = 1;
+                    markDataDirty(data);
+                    printf("Payroll payment released.\n");
+                }
+                break;
+            }
+        }
+    }
 }
 
 void printMenu(void) {
@@ -865,16 +900,17 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
             printf("8. Role management\n");
             printf("9. Payroll\n");
             printf("10. Project orientation\n");
-            printf("11. Reporting dashboard\n");
-            printf("12. Back to login menu\n");
+            printf("11. Leave request approvals\n");
+            printf("12. Payroll release reviews\n");
+            printf("13. Reporting dashboard\n");
+            printf("14. Back to login menu\n");
         } else {
-            printf("1. View profile\n");
-            printf("2. My attendance\n");
-            printf("3. My department\n");
-            printf("4. My payroll\n");
-            printf("5. My role\n");
-            printf("6. My leave requests\n");
-            printf("7. Save and exit\n");
+            printf("1. Attendance management\n");
+            printf("2. Leave management\n");
+            printf("3. Payroll\n");
+            printf("4. Project orientation\n");
+            printf("5. View profile\n");
+            printf("6. Logout\n");
         }
 
         printf("Enter choice: ");
@@ -920,11 +956,17 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
                     showModuleMenu(data, "Project orientation", addProjectOrientation, listProjectOrientations);
                     break;
                 case 11:
+                    reviewLeaveRequests(data);
+                    break;
+                case 12:
+                    reviewPayrollReleases(data);
+                    break;
+                case 13:
                     lockData(data);
                     showReportingDashboard(data);
                     unlockData(data);
                     break;
-                case 12:
+                case 14:
                     printf("Returning to login menu.\n");
                     return;
                 default:
@@ -934,23 +976,24 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
         } else {
             switch (choice) {
                 case 1:
+                    showEmployeeAttendanceMenu(data, employeeId);
+                    break;
                 case 2:
+                    showEmployeeLeaveMenu(data, employeeId);
+                    break;
                 case 3:
+                    viewMyPayroll(data, employeeId);
+                    break;
                 case 4:
+                    showEmployeeProjectMenu(data, employeeId);
+                    break;
                 case 5:
-                case 6:
                     lockData(data);
-                    if (choice == 1) showOwnProfile(data, employeeId);
-                    else if (choice == 2) showOwnAttendance(data, employeeId);
-                    else if (choice == 3) showOwnDepartment(data, employeeId);
-                    else if (choice == 4) showOwnPayroll(data, employeeId);
-                    else if (choice == 5) showOwnRole(data, employeeId);
-                    else showOwnLeaves(data, employeeId);
+                    showOwnProfile(data, employeeId);
                     unlockData(data);
                     break;
-                case 7:
-                    saveAll(data);
-                    printf("Data saved. Logging out.\n");
+                case 6:
+                    printf("Logging out from employee menu.\n");
                     return;
                 default:
                     printf("Invalid choice. Try again.\n");

@@ -1,3 +1,0 @@
-2
-1|HR|HR access
-2|Employee|Employee access

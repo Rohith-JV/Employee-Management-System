@@ -39,13 +39,44 @@ void listAttendance(const EMSData *data) {
         return;
     }
 
-    printf("\nAttendance:\n");
-    for (int32_t i = 0; i < data->attendanceCount; ++i) {
-        const AttendanceRecord *record = &data->attendance[i];
-        printf("%d. Employee %d | %s | %s\n",
-               record->id,
-               record->employeeId,
-               record->date,
-               record->status ? "Present" : "Absent");
+    int32_t choice = 0;
+    while (choice != 3) {
+        printf("\nAttendance:\n");
+        printf("1. List all records\n");
+        printf("2. List for an employee\n");
+        printf("3. Back\n");
+        choice = readInt("Enter choice: ");
+
+        if (choice == 1) {
+            for (int32_t i = 0; i < data->attendanceCount; ++i) {
+                const AttendanceRecord *record = &data->attendance[i];
+                printf("%d. Employee %d | %s | %s\n",
+                       record->id,
+                       record->employeeId,
+                       record->date,
+                       record->status ? "Present" : "Absent");
+            }
+        } else if (choice == 2) {
+            int32_t empId = readValidatedInt("Employee ID: ", 1, 100000, "positive integer");
+            int found = 0;
+            for (int32_t i = 0; i < data->attendanceCount; ++i) {
+                const AttendanceRecord *record = &data->attendance[i];
+                if (record->employeeId == empId) {
+                    printf("%d. Employee %d | %s | %s\n",
+                           record->id,
+                           record->employeeId,
+                           record->date,
+                           record->status ? "Present" : "Absent");
+                    found = 1;
+                }
+            }
+            if (!found) {
+                printf("No attendance records found for employee %d.\n", empId);
+            }
+        } else if (choice == 3) {
+            break;
+        } else {
+            printf("Invalid choice. Try again.\n");
+        }
     }
 }
