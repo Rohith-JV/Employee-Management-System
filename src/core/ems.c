@@ -302,7 +302,7 @@ int32_t readInt(const char *prompt) {
 
     printf("%s", prompt);
     if (!fgets(buffer, sizeof(buffer), stdin)) {
-        return 0;
+        return EMS_INPUT_EOF;
     }
     trimNewline(buffer);
 
@@ -320,7 +320,7 @@ int32_t readValidatedInt(const char *prompt, int32_t minValue, int32_t maxValue,
     while (1) {
         printf("%s", prompt);
         if (!fgets(buffer, sizeof(buffer), stdin)) {
-            return 0;
+            return EMS_INPUT_EOF;
         }
         trimNewline(buffer);
 

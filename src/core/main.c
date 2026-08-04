@@ -12,6 +12,10 @@ int main(void) {
     while (choice != 3) {
         printMenu();
         choice = readInt("Enter choice: ");
+        if (choice == EMS_INPUT_EOF) {
+            choice = 3;
+            break;
+        }
 
         switch (choice) {
             case 1:

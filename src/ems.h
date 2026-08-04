@@ -50,6 +50,7 @@
 #define INACTIVE_FLAG 0
 #define EXIT_MENU_CHOICE 3
 #define BACK_TO_MAIN_MENU 3
+#define EMS_INPUT_EOF (-2147483647)
 
 typedef struct {
     int32_t id;
