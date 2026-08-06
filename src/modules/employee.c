@@ -349,6 +349,9 @@ void showEmployeeRecordsMenu(EMSData *data) {
         printf("5. Delete employee\n");
         printf("6. Back\n");
         choice = readInt("Enter choice: ");
+        if (choice == EMS_INPUT_EOF) {
+            return;
+        }
 
         switch (choice) {
             case 1:

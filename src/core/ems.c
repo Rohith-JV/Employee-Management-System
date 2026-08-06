@@ -10,6 +10,8 @@ void unlockData(EMSData *data) {
     ems_mutex_unlock(&data->mutex);
 }
 
+/* Caller must hold data->mutex: the flag and the signal have to be paired with
+   the wait predicate, otherwise the wakeup can be lost. */
 void markDataDirty(EMSData *data) {
     data->dirty = 1;
     ems_condition_signal(&data->saveRequested);
@@ -23,10 +25,14 @@ static EMS_THREAD_RETURN EMS_THREAD_CALL autosaveWorker(void *argument) {
         while (data->autosaveRunning && !data->dirty) {
             ems_condition_wait(&data->saveRequested, &data->mutex);
         }
-        if (data->autosaveRunning && data->dirty) {
+        if (data->dirty) {
             data->dirty = 0;
             saveAllUnlocked(data);
         }
+    }
+    if (data->dirty) {
+        data->dirty = 0;
+        saveAllUnlocked(data);
     }
     unlockData(data);
 #ifdef _WIN32
@@ -51,14 +57,17 @@ int startAutosave(EMSData *data) {
 }
 
 void stopAutosave(EMSData *data) {
-    if (!data->autosaveRunning) {
-        return;
-    }
+    int wasRunning;
+
     lockData(data);
+    wasRunning = data->autosaveRunning;
     data->autosaveRunning = 0;
     ems_condition_signal(&data->saveRequested);
     unlockData(data);
-    ems_thread_join(data->autosaveThread);
+
+    if (wasRunning) {
+        ems_thread_join(data->autosaveThread);
+    }
 }
 
 static void trimNewline(char *text) {
@@ -376,6 +385,9 @@ void showModuleMenu(EMSData *data, const char *title, int (*addFunc)(EMSData *),
         printf("2. List\n");
         printf("3. Back\n");
         subChoice = readInt("Enter choice: ");
+        if (subChoice == EMS_INPUT_EOF) {
+            return;
+        }
 
         switch (subChoice) {
             case 1:
@@ -407,6 +419,15 @@ static int hasRoleId(const EMSData *data, int32_t roleId) {
     return 0;
 }
 
+static int hasUsername(const EMSData *data, const char *username) {
+    for (int32_t i = 0; i < data->accountCount; ++i) {
+        if (strcmp(data->accounts[i].username, username) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void ensureDefaultAccounts(EMSData *data) {
     if (!hasRoleId(data, HR_ROLE_ID) && data->roleCount < MAX_ROLES) {
         Role *hrRole = &data->roles[data->roleCount++];
@@ -422,16 +443,23 @@ static void ensureDefaultAccounts(EMSData *data) {
         copyStringSafe(employeeRole->description, sizeof(employeeRole->description), "Employee access");
     }
 
-    if (data->accountCount == 0) {
+    /* The administrator account must always exist, otherwise a data file that
+       only holds employee accounts locks everyone out of the system. */
+    if (!hasUsername(data, "admin") && data->accountCount < MAX_ACCOUNTS) {
         AccessAccount *adminAccount = &data->accounts[data->accountCount++];
+        memset(adminAccount, 0, sizeof(*adminAccount));
         adminAccount->id = DEFAULT_ADMIN_ROLE_ID;
         copyStringSafe(adminAccount->username, sizeof(adminAccount->username), "admin");
         copyStringSafe(adminAccount->password, sizeof(adminAccount->password), "admin");
         adminAccount->roleId = ADMIN_ROLE_ID;
         adminAccount->employeeId = INACTIVE_FLAG;
         adminAccount->active = ACTIVE_FLAG;
+    }
 
+    /* Demo employee login, only seeded on a brand-new database. */
+    if (data->accountCount == 1 && !hasUsername(data, "employee")) {
         AccessAccount *employeeAccount = &data->accounts[data->accountCount++];
+        memset(employeeAccount, 0, sizeof(*employeeAccount));
         employeeAccount->id = DEFAULT_EMPLOYEE_ROLE_ID;
         copyStringSafe(employeeAccount->username, sizeof(employeeAccount->username), "employee");
         copyStringSafe(employeeAccount->password, sizeof(employeeAccount->password), "employee");
@@ -470,32 +498,56 @@ int roleExists(const EMSData *data, int32_t roleId) {
     return 0;
 }
 
+/* Splits a pipe-delimited line in place, keeping empty fields. */
+static int splitFields(char *line, char *fields[], int maxFields) {
+    int count = 0;
+    char *cursor = line;
+
+    while (count < maxFields) {
+        char *separator = strchr(cursor, '|');
+        fields[count++] = cursor;
+        if (separator == NULL) {
+            break;
+        }
+        *separator = '\0';
+        cursor = separator + 1;
+    }
+    return count;
+}
+
 void loadAll(EMSData *data) {
     FILE *file = fopen("data/employees.dat", "r");
     if (file) {
+        char line[512];
         int tempCount = 0;
-        if (fscanf(file, "%d\n", &tempCount) == 1) {
+        if (fgets(line, sizeof(line), file) && sscanf(line, "%d", &tempCount) == 1) {
             int32_t loadedCount = 0;
             for (int32_t i = 0; i < tempCount && i < MAX_EMPLOYEES; ++i) {
                 Employee tempEmployee;
-                int tempActive = 0;
-                if (fscanf(file, "%d|%49[^|\n]|%d|%d|%d|%49[^|\n]|%49[^|\n]|%d|%11[^|\n]|%19[^|\n]\n",
-                           &tempEmployee.id,
-                           tempEmployee.name,
-                           &tempEmployee.departmentId,
-                           &tempEmployee.roleId,
-                           &tempEmployee.salary,
-                           tempEmployee.email,
-                           tempEmployee.phone,
-                           &tempActive,
-                           tempEmployee.joinDate,
-                           tempEmployee.status) == 10) {
-                    tempEmployee.active = (uint8_t)tempActive;
-                    if (tempEmployee.id > 0) {
-                        data->employees[loadedCount++] = tempEmployee;
-                    }
-                } else {
+                char *fields[10] = {0};
+
+                if (!fgets(line, sizeof(line), file)) {
                     break;
+                }
+                trimNewline(line);
+                if (splitFields(line, fields, 10) < 10) {
+                    continue;
+                }
+
+                memset(&tempEmployee, 0, sizeof(tempEmployee));
+                tempEmployee.id = (int32_t)strtol(fields[0], NULL, 10);
+                copyStringSafe(tempEmployee.name, sizeof(tempEmployee.name), fields[1]);
+                tempEmployee.departmentId = (int32_t)strtol(fields[2], NULL, 10);
+                tempEmployee.roleId = (int32_t)strtol(fields[3], NULL, 10);
+                tempEmployee.salary = (int32_t)strtol(fields[4], NULL, 10);
+                copyStringSafe(tempEmployee.email, sizeof(tempEmployee.email), fields[5]);
+                copyStringSafe(tempEmployee.phone, sizeof(tempEmployee.phone), fields[6]);
+                tempEmployee.active = (uint8_t)strtol(fields[7], NULL, 10);
+                copyStringSafe(tempEmployee.joinDate, sizeof(tempEmployee.joinDate), fields[8]);
+                copyStringSafe(tempEmployee.status, sizeof(tempEmployee.status), fields[9]);
+
+                if (tempEmployee.id > 0) {
+                    data->employees[loadedCount++] = tempEmployee;
                 }
             }
             data->employeeCount = loadedCount;
@@ -782,11 +834,43 @@ void saveAll(EMSData *data) {
     unlockData(data);
 }
 
+/* Copies the pending request with the given id, if it is still pending.
+   Caller must hold data->mutex. */
+static int copyPendingLeave(const EMSData *data, int32_t leaveId, LeaveRequest *out) {
+    for (int32_t i = 0; i < data->leaveCount; ++i) {
+        if (data->leaves[i].id == leaveId && data->leaves[i].status == 0) {
+            *out = data->leaves[i];
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int setLeaveStatus(EMSData *data, int32_t leaveId, int32_t status) {
+    int applied = 0;
+
+    lockData(data);
+    for (int32_t i = 0; i < data->leaveCount; ++i) {
+        if (data->leaves[i].id == leaveId && data->leaves[i].status == 0) {
+            data->leaves[i].status = status;
+            markDataDirty(data);
+            applied = 1;
+            break;
+        }
+    }
+    unlockData(data);
+    return applied;
+}
+
 void reviewLeaveRequests(EMSData *data) {
     while (1) {
+        LeaveRequest selected;
         int32_t choice = 0;
+        int32_t decision = 0;
         int found = 0;
+
         printf("\n=== HR Leave Requests ===\n");
+        lockData(data);
         for (int32_t i = 0; i < data->leaveCount; ++i) {
             if (data->leaves[i].status == 0) {
                 const LeaveRequest *leave = &data->leaves[i];
@@ -799,43 +883,79 @@ void reviewLeaveRequests(EMSData *data) {
                 found = 1;
             }
         }
+        unlockData(data);
+
         if (!found) {
             printf("No pending leave requests.\n");
             return;
         }
+
         choice = readInt("Enter leave request ID to review (0 to go back): ");
-        if (choice == 0) {
+        if (choice == 0 || choice == EMS_INPUT_EOF) {
             return;
         }
-        for (int32_t i = 0; i < data->leaveCount; ++i) {
-            if (data->leaves[i].id == choice && data->leaves[i].status == 0) {
-                printf("\nLeave request %d for employee %d:\n", data->leaves[i].id, data->leaves[i].employeeId);
-                printf("%s to %s | %s\n",
-                       data->leaves[i].startDate,
-                       data->leaves[i].endDate,
-                       data->leaves[i].reason);
-                printf("1. Approve\n2. Reject\n3. Back\n");
-                int decision = readInt("Enter choice: ");
-                if (decision == 1) {
-                    data->leaves[i].status = 1;
-                    markDataDirty(data);
-                    printf("Leave request approved.\n");
-                } else if (decision == 2) {
-                    data->leaves[i].status = 2;
-                    markDataDirty(data);
-                    printf("Leave request rejected.\n");
-                }
-                break;
+
+        lockData(data);
+        found = copyPendingLeave(data, choice, &selected);
+        unlockData(data);
+        if (!found) {
+            printf("No pending leave request with ID %d.\n", choice);
+            continue;
+        }
+
+        printf("\nLeave request %d for employee %d:\n", selected.id, selected.employeeId);
+        printf("%s to %s | %s\n", selected.startDate, selected.endDate, selected.reason);
+        printf("1. Approve\n2. Reject\n3. Back\n");
+        decision = readInt("Enter choice: ");
+        if (decision == EMS_INPUT_EOF) {
+            return;
+        }
+        if (decision == 1 || decision == 2) {
+            if (setLeaveStatus(data, selected.id, decision)) {
+                printf(decision == 1 ? "Leave request approved.\n" : "Leave request rejected.\n");
+            } else {
+                printf("Leave request %d is no longer pending.\n", selected.id);
             }
         }
     }
 }
 
+/* Caller must hold data->mutex. */
+static int copyUncreditedPayroll(const EMSData *data, int32_t payrollId, PayrollRecord *out) {
+    for (int32_t i = 0; i < data->payrollCount; ++i) {
+        if (data->payroll[i].id == payrollId && !data->payroll[i].credited) {
+            *out = data->payroll[i];
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int creditPayroll(EMSData *data, int32_t payrollId) {
+    int applied = 0;
+
+    lockData(data);
+    for (int32_t i = 0; i < data->payrollCount; ++i) {
+        if (data->payroll[i].id == payrollId && !data->payroll[i].credited) {
+            data->payroll[i].credited = 1;
+            markDataDirty(data);
+            applied = 1;
+            break;
+        }
+    }
+    unlockData(data);
+    return applied;
+}
+
 void reviewPayrollReleases(EMSData *data) {
     while (1) {
+        PayrollRecord selected;
         int32_t choice = 0;
+        int32_t decision = 0;
         int found = 0;
+
         printf("\n=== HR Payroll Releases ===\n");
+        lockData(data);
         for (int32_t i = 0; i < data->payrollCount; ++i) {
             if (!data->payroll[i].credited) {
                 const PayrollRecord *pay = &data->payroll[i];
@@ -847,30 +967,39 @@ void reviewPayrollReleases(EMSData *data) {
                 found = 1;
             }
         }
+        unlockData(data);
+
         if (!found) {
             printf("No uncredited payroll records.\n");
             return;
         }
+
         choice = readInt("Enter payroll record ID to release (0 to go back): ");
-        if (choice == 0) {
+        if (choice == 0 || choice == EMS_INPUT_EOF) {
             return;
         }
-        for (int32_t i = 0; i < data->payrollCount; ++i) {
-            if (data->payroll[i].id == choice && !data->payroll[i].credited) {
-                printf("\nPayroll record %d for employee %d:\n", data->payroll[i].id, data->payroll[i].employeeId);
-                printf("%s | Gross: %.2f | Deductions: %.2f | Net: %.2f\n",
-                       data->payroll[i].month,
-                       data->payroll[i].salary,
-                       data->payroll[i].deductions,
-                       data->payroll[i].netPay);
-                printf("1. Release payment\n2. Back\n");
-                int decision = readInt("Enter choice: ");
-                if (decision == 1) {
-                    data->payroll[i].credited = 1;
-                    markDataDirty(data);
-                    printf("Payroll payment released.\n");
-                }
-                break;
+
+        lockData(data);
+        found = copyUncreditedPayroll(data, choice, &selected);
+        unlockData(data);
+        if (!found) {
+            printf("No uncredited payroll record with ID %d.\n", choice);
+            continue;
+        }
+
+        printf("\nPayroll record %d for employee %d:\n", selected.id, selected.employeeId);
+        printf("%s | Gross: %.2f | Deductions: %.2f | Net: %.2f\n",
+               selected.month, selected.salary, selected.deductions, selected.netPay);
+        printf("1. Release payment\n2. Back\n");
+        decision = readInt("Enter choice: ");
+        if (decision == EMS_INPUT_EOF) {
+            return;
+        }
+        if (decision == 1) {
+            if (creditPayroll(data, selected.id)) {
+                printf("Payroll payment released.\n");
+            } else {
+                printf("Payroll record %d was already credited.\n", selected.id);
             }
         }
     }
@@ -915,6 +1044,9 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
 
         printf("Enter choice: ");
         choice = readInt("");
+        if (choice == EMS_INPUT_EOF) {
+            return;
+        }
 
         if (strcmp(roleLabel, "HR") == 0) {
             switch (choice) {
@@ -982,7 +1114,9 @@ void showRoleModuleMenu(EMSData *data, const char *roleLabel, int32_t employeeId
                     showEmployeeLeaveMenu(data, employeeId);
                     break;
                 case 3:
+                    lockData(data);
                     viewMyPayroll(data, employeeId);
+                    unlockData(data);
                     break;
                 case 4:
                     showEmployeeProjectMenu(data, employeeId);

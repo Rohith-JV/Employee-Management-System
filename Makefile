@@ -29,6 +29,7 @@ run-tests: test
 # Clean both the main executable and the test executable
 clean:
 	rm -f $(TARGET) $(TEST_TARGET)
+	rm -rf build
 
 # --- Static Analysis ---
 # --enable=all turns on all warnings, style, performance, and portability checks.

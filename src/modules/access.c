@@ -209,6 +209,9 @@ void showAccessManagementMenu(EMSData *data) {
     while (choice != 3) {
         printf("\n=== Login & Access Management ===\n1. Add account\n2. List accounts\n3. Back\n");
         choice = readInt("Enter choice: ");
+        if (choice == EMS_INPUT_EOF) {
+            return;
+        }
         switch (choice) {
             case 1: addAccessAccount(data); markDataDirty(data); break;
             case 2: listAccessAccounts(data); break;

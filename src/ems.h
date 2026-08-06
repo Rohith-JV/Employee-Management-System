@@ -176,6 +176,7 @@ int startAutosave(EMSData *data);
 void stopAutosave(EMSData *data);
 void lockData(EMSData *data);
 void unlockData(EMSData *data);
+/* Requires data->mutex to be held by the caller. */
 void markDataDirty(EMSData *data);
 int employeeExists(const EMSData *data, int32_t employeeId);
 int departmentExists(const EMSData *data, int32_t departmentId);

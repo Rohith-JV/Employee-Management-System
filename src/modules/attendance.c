@@ -46,6 +46,9 @@ void listAttendance(const EMSData *data) {
         printf("2. List for an employee\n");
         printf("3. Back\n");
         choice = readInt("Enter choice: ");
+        if (choice == EMS_INPUT_EOF) {
+            return;
+        }
 
         if (choice == 1) {
             for (int32_t i = 0; i < data->attendanceCount; ++i) {

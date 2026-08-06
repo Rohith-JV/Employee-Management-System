@@ -45,6 +45,9 @@ void listDepartments(const EMSData *data) {
         printf("2. Refresh list\n");
         printf("3. Back\n");
         choice = readInt("Enter choice: ");
+        if (choice == EMS_INPUT_EOF) {
+            return;
+        }
         if (choice == 1) {
             int32_t deptId = readValidatedInt("Department ID: ", 1, 100000, "positive integer");
             int found = 0;
