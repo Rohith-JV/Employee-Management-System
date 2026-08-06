@@ -3,6 +3,7 @@
 
 #include "../src/ems.h"
 
+int useTestSandbox(void);
 void setupTestData(EMSData *data);
 void teardownTestData(EMSData *data);
 int testSetInput(const char *text);

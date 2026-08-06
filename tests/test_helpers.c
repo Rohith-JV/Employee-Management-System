@@ -1,5 +1,28 @@
 #include "test_helpers.h"
 
+#ifdef _WIN32
+#include <direct.h>
+#define ems_mkdir(path) _mkdir(path)
+#define ems_chdir(path) _chdir(path)
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#define ems_mkdir(path) mkdir(path, 0777)
+#define ems_chdir(path) chdir(path)
+#endif
+
+/* Run the suite against a throwaway data directory so the seeded files in the
+   repository data directory are never overwritten by a test run. */
+int useTestSandbox(void) {
+    ems_mkdir("build");
+    ems_mkdir("build/test-sandbox");
+    if (ems_chdir("build/test-sandbox") != 0) {
+        return 0;
+    }
+    ems_mkdir("data");
+    return 1;
+}
+
 void setupTestData(EMSData *data) {
     memset(data, 0, sizeof(*data));
     ems_mutex_init(&data->mutex);
@@ -27,9 +50,9 @@ void teardownTestData(EMSData *data) {
 }
 
 int testSetInput(const char *text) {
-    FILE *file = fopen("tests/.test_input.txt", "w");
+    FILE *file = fopen(".test_input.txt", "w");
     if (file == NULL) return 0;
     fputs(text, file);
     fclose(file);
-    return freopen("tests/.test_input.txt", "r", stdin) != NULL;
+    return freopen(".test_input.txt", "r", stdin) != NULL;
 }

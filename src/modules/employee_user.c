@@ -43,21 +43,29 @@ void showOwnProfile(EMSData *data, int32_t employeeId) {
 }
 
 int markAttendance(EMSData *data, int32_t employeeId) {
+    AttendanceRecord record;
+    int32_t status;
+
+    memset(&record, 0, sizeof(record));
+    record.employeeId = employeeId;
+    readValidatedText("Date (YYYY-MM-DD): ", record.date, sizeof(record.date), isDate, "YYYY-MM-DD");
+    status = readValidatedInt("Status (1=Present, 0=Absent): ", 0, 1, "0 or 1");
+    if (status == EMS_INPUT_EOF) {
+        return 0;
+    }
+    record.status = status;
+
+    lockData(data);
     if (data->attendanceCount >= MAX_ATTENDANCE) {
+        unlockData(data);
         printf("Attendance storage is full.\n");
         return 0;
     }
-
-    AttendanceRecord *record = &data->attendance[data->attendanceCount];
-    memset(record, 0, sizeof(*record));
-
-    record->id = nextEmployeeAttendanceId(data);
-    record->employeeId = employeeId;
-    readValidatedText("Date (YYYY-MM-DD): ", record->date, sizeof(record->date), isDate, "YYYY-MM-DD");
-    record->status = readValidatedInt("Status (1=Present, 0=Absent): ", 0, 1, "0 or 1");
-
-    data->attendanceCount++;
+    record.id = nextEmployeeAttendanceId(data);
+    data->attendance[data->attendanceCount++] = record;
     markDataDirty(data);
+    unlockData(data);
+
     printf("Attendance recorded for employee %d.\n", employeeId);
     return 1;
 }
@@ -85,15 +93,18 @@ void showEmployeeAttendanceMenu(EMSData *data, int32_t employeeId) {
         printf("2. View my attendance\n");
         printf("3. Back\n");
         choice = readInt("Enter choice: ");
+        if (choice == EMS_INPUT_EOF) {
+            return;
+        }
 
         switch (choice) {
             case 1:
-                lockData(data);
                 markAttendance(data, employeeId);
-                unlockData(data);
                 break;
             case 2:
+                lockData(data);
                 viewMyAttendance(data, employeeId);
+                unlockData(data);
                 break;
             case 3:
                 break;
@@ -105,23 +116,26 @@ void showEmployeeAttendanceMenu(EMSData *data, int32_t employeeId) {
 }
 
 int applyLeave(EMSData *data, int32_t employeeId) {
+    LeaveRequest leave;
+
+    memset(&leave, 0, sizeof(leave));
+    leave.employeeId = employeeId;
+    readValidatedText("Start date (YYYY-MM-DD): ", leave.startDate, sizeof(leave.startDate), isDate, "YYYY-MM-DD");
+    readValidatedText("End date (YYYY-MM-DD): ", leave.endDate, sizeof(leave.endDate), isDate, "YYYY-MM-DD");
+    readValidatedText("Reason: ", leave.reason, sizeof(leave.reason), isTextWithSpaces, "letters, numbers, and spaces");
+    leave.status = 0; /* pending */
+
+    lockData(data);
     if (data->leaveCount >= MAX_LEAVES) {
+        unlockData(data);
         printf("Leave storage is full.\n");
         return 0;
     }
-
-    LeaveRequest *leave = &data->leaves[data->leaveCount];
-    memset(leave, 0, sizeof(*leave));
-
-    leave->id = nextEmployeeLeaveId(data);
-    leave->employeeId = employeeId;
-    readValidatedText("Start date (YYYY-MM-DD): ", leave->startDate, sizeof(leave->startDate), isDate, "YYYY-MM-DD");
-    readValidatedText("End date (YYYY-MM-DD): ", leave->endDate, sizeof(leave->endDate), isDate, "YYYY-MM-DD");
-    readValidatedText("Reason: ", leave->reason, sizeof(leave->reason), isTextWithSpaces, "letters, numbers, and spaces");
-    leave->status = 0; /* pending */
-
-    data->leaveCount++;
+    leave.id = nextEmployeeLeaveId(data);
+    data->leaves[data->leaveCount++] = leave;
     markDataDirty(data);
+    unlockData(data);
+
     printf("Leave request submitted and is pending approval.\n");
     return 1;
 }
@@ -156,15 +170,18 @@ void showEmployeeLeaveMenu(EMSData *data, int32_t employeeId) {
         printf("2. View my leave requests\n");
         printf("3. Back\n");
         choice = readInt("Enter choice: ");
+        if (choice == EMS_INPUT_EOF) {
+            return;
+        }
 
         switch (choice) {
             case 1:
-                lockData(data);
                 applyLeave(data, employeeId);
-                unlockData(data);
                 break;
             case 2:
+                lockData(data);
                 viewMyLeaves(data, employeeId);
+                unlockData(data);
                 break;
             case 3:
                 break;
@@ -248,13 +265,20 @@ void showEmployeeProjectMenu(EMSData *data, int32_t employeeId) {
         printf("2. View project progress\n");
         printf("3. Back\n");
         choice = readInt("Enter choice: ");
+        if (choice == EMS_INPUT_EOF) {
+            return;
+        }
 
         switch (choice) {
             case 1:
+                lockData(data);
                 viewMyProjects(data, employeeId);
+                unlockData(data);
                 break;
             case 2:
+                lockData(data);
                 viewProjectProgress(data, employeeId);
+                unlockData(data);
                 break;
             case 3:
                 break;

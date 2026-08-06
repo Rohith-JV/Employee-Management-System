@@ -1,5 +1,12 @@
 #include "ems.h"
 
+static void shutdownSystem(EMSData *data) {
+    stopAutosave(data);
+    saveAll(data);
+    ems_mutex_destroy(&data->mutex);
+    ems_condition_destroy(&data->saveRequested);
+}
+
 int main(void) {
     EMSData data;
     initializeData(&data);
@@ -13,8 +20,9 @@ int main(void) {
         printMenu();
         choice = readInt("Enter choice: ");
         if (choice == EMS_INPUT_EOF) {
-            choice = 3;
-            break;
+            shutdownSystem(&data);
+            printf("\nInput closed. Data saved. Exiting.\n");
+            return 0;
         }
 
         switch (choice) {
@@ -37,10 +45,7 @@ int main(void) {
                 }
                 break;
             case 3:
-                stopAutosave(&data);
-                saveAll(&data);
-                ems_mutex_destroy(&data.mutex);
-                ems_condition_destroy(&data.saveRequested);
+                shutdownSystem(&data);
                 printf("Data saved successfully. Exiting.\n");
                 break;
             default:

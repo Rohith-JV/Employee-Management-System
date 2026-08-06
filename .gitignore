@@ -1,0 +1,8 @@
+# Build output
+/ems
+/test_ems
+*.exe
+build/
+
+# Test scratch files
+.test_input.txt
