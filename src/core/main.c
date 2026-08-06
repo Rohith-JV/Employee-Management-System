@@ -18,7 +18,7 @@ int main(void) {
     int32_t employeeId = 0;
     while (choice != 3) {
         printMenu();
-        choice = readInt("Enter choice: ");
+        choice = readInt("");
         if (choice == EMS_INPUT_EOF) {
             shutdownSystem(&data);
             printf("\nInput closed. Data saved. Exiting.\n");

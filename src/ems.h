@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <regex.h>
 #include "threading.h"
 
 #define MAX_EMPLOYEES 100
@@ -51,6 +52,11 @@
 #define EXIT_MENU_CHOICE 3
 #define BACK_TO_MAIN_MENU 3
 #define EMS_INPUT_EOF (-2147483647)
+#define PASSWORD_REQUIREMENTS \
+    "\n[ Password Requirements ]\n" \
+    "  - Length: 8 to 32 characters\n" \
+    "  - Must contain at least 1 uppercase letter (A-Z)\n" \
+    "  - Must contain at least 1 special character (e.g., !@#$%^&*)\n\n"
 
 typedef struct {
     int32_t id;

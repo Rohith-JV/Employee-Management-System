@@ -72,7 +72,7 @@ void stopAutosave(EMSData *data) {
 
 static void trimNewline(char *text) {
     size_t len = strlen(text);
-    if (len > 0 && text[len - 1] == '\n') {
+    if (len > 0 && (text[len - 1] == '\n' || text[len - 1] == '\r')) {
         text[len - 1] = '\0';
     }
 }
@@ -242,17 +242,46 @@ int isDate(const char *input) {
     if (strlen(input) != 10) {
         return 0;
     }
-    return isdigit((unsigned char)input[0]) && isdigit((unsigned char)input[1]) && isdigit((unsigned char)input[2]) && isdigit((unsigned char)input[3]) &&
-           input[4] == '-' && isdigit((unsigned char)input[5]) && isdigit((unsigned char)input[6]) &&
-           input[7] == '-' && isdigit((unsigned char)input[8]) && isdigit((unsigned char)input[9]);
+
+    if (!isdigit((unsigned char)input[0]) || !isdigit((unsigned char)input[1]) ||
+        !isdigit((unsigned char)input[2]) || !isdigit((unsigned char)input[3]) ||
+        input[4] != '-' ||
+        !isdigit((unsigned char)input[5]) || !isdigit((unsigned char)input[6]) ||
+        input[7] != '-' ||
+        !isdigit((unsigned char)input[8]) || !isdigit((unsigned char)input[9])) {
+        return 0;
+    }
+
+    int year  = (input[0] - '0') * 1000 + (input[1] - '0') * 100 + (input[2] - '0') * 10 + (input[3] - '0');
+    int month = (input[5] - '0') * 10 + (input[6] - '0');
+    int day   = (input[8] - '0') * 10 + (input[9] - '0');
+
+    if (month < 1 || month > 12) {
+        return 0;
+    }
+
+    int daysInMonth[] = { 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+    if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+        daysInMonth[2] = 29;
+    }
+
+    return (day >= 1 && day <= daysInMonth[month]);
 }
 
 int isMonth(const char *input) {
     if (strlen(input) != 7) {
         return 0;
     }
-    return isdigit((unsigned char)input[0]) && isdigit((unsigned char)input[1]) && isdigit((unsigned char)input[2]) && isdigit((unsigned char)input[3]) &&
-           input[4] == '-' && isdigit((unsigned char)input[5]) && isdigit((unsigned char)input[6]);
+    if (!isdigit((unsigned char)input[0]) || !isdigit((unsigned char)input[1]) ||
+        !isdigit((unsigned char)input[2]) || !isdigit((unsigned char)input[3]) ||
+        input[4] != '-' ||
+        !isdigit((unsigned char)input[5]) || !isdigit((unsigned char)input[6])) {
+        return 0;
+    }
+
+    int month = (input[5] - '0') * 10 + (input[6] - '0');
+    return month >= 1 && month <= 12;
 }
 
 int isStatusValue(const char *input) {
@@ -285,8 +314,36 @@ int isUsername(const char *input) {
 }
 
 int isPassword(const char *input) {
-    int len = (int)strlen(input);
-    return len >= 4 && len <= 32;
+    if (!input) {
+        return 0;
+    }
+
+    size_t len = strlen(input);
+    if (len < 8 || len > 32) {
+        return 0;
+    }
+
+    regex_t regex_upper;
+    regex_t regex_symbol;
+
+    /* Compile regex patterns */
+    if (regcomp(&regex_upper, "[A-Z]", REG_EXTENDED | REG_NOSUB) != 0) {
+        return 0;
+    }
+    if (regcomp(&regex_symbol, "[^a-zA-Z0-9]", REG_EXTENDED | REG_NOSUB) != 0) {
+        regfree(&regex_upper);
+        return 0;
+    }
+
+    /* Execute pattern matching */
+    int upper_match = regexec(&regex_upper, input, 0, NULL, 0);
+    int symbol_match = regexec(&regex_symbol, input, 0, NULL, 0);
+
+    /* Free allocated regex resources */
+    regfree(&regex_upper);
+    regfree(&regex_symbol);
+
+    return (upper_match == 0) && (symbol_match == 0);
 }
 
 void readValidatedText(const char *prompt, char *buffer, size_t size, int (*validator)(const char *), const char *formatHint) {
